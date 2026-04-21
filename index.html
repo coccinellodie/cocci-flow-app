@@ -34,10 +34,6 @@
     .header-row { display: flex; align-items: flex-start; justify-content: space-between; }
     .day-name { font-family: 'Cormorant Garamond', serif; font-size: 44px; font-weight: 400; line-height: 1; color: var(--green-dk); letter-spacing: -0.01em; }
     .date-sub { font-size: 13px; color: var(--muted); margin-top: 5px; font-weight: 300; }
-    .streak-badge { display: flex; flex-direction: column; align-items: center; background: var(--soft-rose); border-radius: 18px; padding: 10px 18px; border: 1px solid rgba(182,154,148,0.35); min-width: 72px; }
-    .streak-num { font-family: 'Cormorant Garamond', serif; font-size: 30px; font-weight: 600; color: var(--rose-dk); line-height: 1; }
-    .streak-label { font-size: 10px; color: var(--rose); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 3px; }
-
     /* TIMER BANNER */
     .timer-banner { position: fixed; top: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 430px; background: var(--green-dk); color: white; padding: 12px 20px; display: flex; align-items: center; gap: 10px; z-index: 200; }
     .timer-title { flex: 1; font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -180,24 +176,6 @@
     .prio-name { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); }
     .prio-count { font-size: 11px; color: var(--muted); margin-left: auto; }
 
-    /* STATS */
-    .stats-card { background: var(--card); border-radius: 18px; padding: 20px; margin-bottom: 14px; border: 1px solid var(--border); }
-    .stats-h { font-family: 'Cormorant Garamond', serif; font-size: 20px; color: var(--green-dk); margin-bottom: 14px; }
-    .stats-row { display: flex; justify-content: space-around; margin-bottom: 14px; }
-    .stats-num { font-family: 'Cormorant Garamond', serif; font-size: 36px; line-height: 1; }
-    .stats-lbl { font-size: 11px; color: var(--muted); margin-top: 3px; }
-    .prog-bg { height: 6px; background: var(--soft); border-radius: 3px; overflow: hidden; }
-    .prog-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--green), var(--rose)); transition: width 0.6s ease; }
-    .week-wrap { display: flex; justify-content: space-between; margin-top: 14px; }
-    .week-col { display: flex; flex-direction: column; align-items: center; gap: 5px; }
-    .w-dot { width: 32px; height: 32px; border-radius: 50%; background: var(--soft); display: flex; align-items: center; justify-content: center; font-size: 11px; color: var(--muted); font-weight: 500; }
-    .w-dot.done-day { background: var(--green); color: white; }
-    .w-dot.today { background: var(--rose); color: white; }
-    .w-lbl { font-size: 9px; color: var(--muted); }
-    .data-row { display: flex; gap: 10px; margin-top: 4px; }
-    .btn-data { flex: 1; padding: 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--card); font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--text); cursor: pointer; text-align: center; transition: all 0.15s; }
-    .btn-data:hover { border-color: var(--rose); color: var(--rose-dk); }
-    .btn-data.green:hover { border-color: var(--green-dk); color: var(--green-dk); }
 
     ::-webkit-scrollbar { width: 3px; }
     ::-webkit-scrollbar-track { background: transparent; }
@@ -269,24 +247,13 @@
   // ── STORAGE ────────────────────────────────────────
   const load = (k,def) => { try { return JSON.parse(localStorage.getItem(k)) ?? def; } catch { return def; } };
   const save = (k,v)   => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
-  const KEYS = { tasks:'flow_v4', streak:'flow_streak_v1', history:'flow_history_v1', cats:'flow_custom_cats_v1' };
+  const KEYS = { tasks:'flow_v4', cats:'flow_custom_cats_v1' };
 
   const migrateTasks = (tasks) => tasks.map(t => ({
     ...t,
     categories: Array.isArray(t.categories) ? t.categories : (t.category ? [t.category] : []),
     scheduledDate: t.scheduledDate ?? null,
   }));
-
-  // ── STREAK ─────────────────────────────────────────
-  function bumpStreak(streak, history) {
-    const t=todayKey(), y=ydayKey();
-    if (streak.lastDate===t) return { streak, history };
-    const nh = { ...history, [t]: true };
-    const nc = streak.lastDate===y ? streak.count+1 : 1;
-    const ns = { count: nc, lastDate: t };
-    save(KEYS.streak, ns); save(KEYS.history, nh);
-    return { streak: ns, history: nh };
-  }
 
   // ── VOICE ──────────────────────────────────────────
   function useVoice() {
@@ -440,79 +407,6 @@
         {filtered.length===0 && catFilter && (
           <div style={{color:'var(--muted)',fontSize:14,textAlign:'center',padding:'32px 0',fontStyle:'italic'}}>Aucune tâche dans cette catégorie</div>
         )}
-      </div>
-    );
-  }
-
-  // ── STATS VIEW ─────────────────────────────────────
-  function StatsView({ tasks, streak, history, onImport }) {
-    const t = todayKey();
-    const doneToday = tasks.filter(tk=>tk.done&&tk.doneDate===t).length;
-    const undoneN   = tasks.filter(tk=>!tk.done).length;
-    const total     = doneToday+undoneN;
-    const rate      = total===0 ? 0 : Math.round((doneToday/total)*100);
-    const totalEver = tasks.filter(tk=>tk.done).length;
-    const last7 = Array.from({length:7},(_,i)=>{
-      const d=new Date(); d.setDate(d.getDate()-(6-i));
-      const key=d.toISOString().split('T')[0];
-      return {key,letter:DAY_SH[d.getDay()],isToday:key===t,hasDone:!!history[key]};
-    });
-    const exportData = () => {
-      const blob = new Blob([JSON.stringify({exportDate:new Date().toISOString(),tasks,streak,history},null,2)],{type:'application/json'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href=url; a.download=`cocci-flow-${t}.json`; a.click(); URL.revokeObjectURL(url);
-    };
-    const fileRef = useRef();
-    const handleFile = (e) => {
-      const file=e.target.files[0]; if(!file) return;
-      const r=new FileReader();
-      r.onload=(ev) => { try { const d=JSON.parse(ev.target.result); if(d.tasks) onImport(d); else alert('Fichier invalide'); } catch{alert('Impossible de lire');} };
-      r.readAsText(file); e.target.value='';
-    };
-    return (
-      <div className="content">
-        <div className="stats-card">
-          <div className="stats-h">Aujourd'hui</div>
-          <div className="stats-row">
-            <div style={{textAlign:'center'}}><div className="stats-num" style={{color:'var(--green)'}}>{doneToday}</div><div className="stats-lbl">terminées</div></div>
-            <div style={{textAlign:'center'}}><div className="stats-num" style={{color:'var(--green-dk)'}}>{undoneN}</div><div className="stats-lbl">restantes</div></div>
-            <div style={{textAlign:'center'}}><div className="stats-num" style={{color:'var(--rose-dk)'}}>{rate}%</div><div className="stats-lbl">complétées</div></div>
-          </div>
-          <div className="prog-bg"><div className="prog-fill" style={{width:`${rate}%`}}/></div>
-        </div>
-        <div className="stats-card">
-          <div className="stats-h">Série 🔥</div>
-          <div style={{display:'flex',alignItems:'center',gap:14,marginBottom:16}}>
-            <div style={{fontFamily:'Cormorant Garamond,serif',fontSize:52,color:'var(--rose)',lineHeight:1}}>{streak.count}</div>
-            <div>
-              <div style={{fontSize:15,color:'var(--text)',fontWeight:500}}>jour{streak.count!==1?'s':''} consécutif{streak.count!==1?'s':''}</div>
-              <div style={{fontSize:12,color:'var(--muted)',marginTop:2}}>{streak.count>=5?'Incroyable 🌿':streak.count>=3?'Belle lancée ✨':'Continue !'}</div>
-            </div>
-          </div>
-          <div className="week-wrap">
-            {last7.map(d=>(
-              <div key={d.key} className="week-col">
-                <div className={`w-dot ${d.isToday?'today':d.hasDone?'done-day':''}`}>{d.letter}</div>
-                <div className="w-lbl">{d.isToday?'auj.':''}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="stats-card" style={{textAlign:'center',padding:'24px 20px'}}>
-          <div style={{fontSize:13,color:'var(--muted)',marginBottom:6}}>Au total</div>
-          <div style={{fontFamily:'Cormorant Garamond,serif',fontSize:56,color:'var(--green-dk)',lineHeight:1}}>{totalEver}</div>
-          <div style={{fontSize:13,color:'var(--muted)',marginTop:6}}>tâches accomplies ✨</div>
-        </div>
-        <div className="stats-card">
-          <div className="stats-h">Partager avec Claude</div>
-          <div style={{fontSize:13,color:'var(--muted)',marginBottom:14,lineHeight:1.6}}>Exporte tes tâches → colle-les dans une conversation Claude → je trie et priorise → tu réimportes.</div>
-          <div className="data-row">
-            <button className="btn-data green" onClick={exportData}>📤 Exporter</button>
-            <button className="btn-data" onClick={() => fileRef.current?.click()}>📥 Importer</button>
-            <input ref={fileRef} type="file" accept=".json" style={{display:'none'}} onChange={handleFile}/>
-          </div>
-        </div>
       </div>
     );
   }
@@ -698,8 +592,6 @@
   // ── APP ────────────────────────────────────────────
   function App() {
     const [tasks,      setTasks]      = useState(() => migrateTasks(load(KEYS.tasks, [])));
-    const [streak,     setStreak]     = useState(() => load(KEYS.streak, {count:0,lastDate:null}));
-    const [history,    setHistory]    = useState(() => load(KEYS.history, {}));
     const [customCats, setCustomCats] = useState(() => load(KEYS.cats, []));
     const [tab,        setTab]        = useState('day');
     const [showForm,   setShowForm]   = useState(false);
@@ -732,13 +624,9 @@
       setTasks(prev => {
         const task = prev.find(t=>t.id===id); if(!task) return prev;
         const newDone = !task.done;
-        if (newDone) {
-          const {streak:ns,history:nh} = bumpStreak(streak,history);
-          setStreak(ns); setHistory(nh);
-        }
         return prev.map(t => t.id===id ? {...t,done:newDone,doneDate:newDone?todayKey():null} : t);
       });
-    }, [streak, history]);
+    }, []);
 
     const handleSaveTask = useCallback((task) => {
       setTasks(prev => {
@@ -775,13 +663,6 @@
       if (!ok) alert("Reconnaissance vocale non disponible.\nEssaie Chrome desktop ou Android Chrome.");
     };
 
-    const handleImport = ({tasks:t,streak:s,history:h}) => {
-      setTasks(migrateTasks(t)); save(KEYS.tasks,t);
-      if(s){setStreak(s);save(KEYS.streak,s);}
-      if(h){setHistory(h);save(KEYS.history,h);}
-      alert('✅ Données importées !');
-    };
-
     return (
       <div style={{paddingTop: timer ? 56 : 0}}>
         {timer && (
@@ -807,22 +688,17 @@
               <div className="day-name">{getDayName()}</div>
               <div className="date-sub">{getDateStr()}</div>
             </div>
-            <div className="streak-badge">
-              <div className="streak-num">{streak.count}</div>
-              <div className="streak-label">🔥 série</div>
-            </div>
           </div>
         </div>
 
         <div className="tabs">
-          {[{id:'day',label:"Aujourd'hui"},{id:'backlog',label:'À faire'},{id:'stats',label:'Stats'}].map(t=>(
+          {[{id:'day',label:"Aujourd'hui"},{id:'backlog',label:'À faire'}].map(t=>(
             <button key={t.id} className={`tab ${tab===t.id?'active':''}`} onClick={()=>setTab(t.id)}>{t.label}</button>
           ))}
         </div>
 
         {tab==='day'     && <DayView tasks={tasks} allCats={allCats} onToggle={handleToggle} onMenu={setCtxTask} onAddToSlot={s=>openAdd(s,todayKey())} />}
         {tab==='backlog' && <BacklogView tasks={tasks} allCats={allCats} onToggle={handleToggle} onMenu={setCtxTask} />}
-        {tab==='stats'   && <StatsView tasks={tasks} streak={streak} history={history} onImport={handleImport} />}
 
         <div className="fab-area">
           {voiceOk && (
