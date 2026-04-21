@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Cocci Flow</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --brown:     #977A5C;
+      --brown-dk:  #4C320D;
+      --rose:      #B69A94;
+      --rose-lt:   #CEA39B;
+      --rose-dk:   #9a6e68;
+      --green:     #8BA288;
+      --green-dk:  #243D1F;
+      --bg:        #FAF7F2;
+      --card:      #FFFFFF;
+      --soft:      #F3EDE6;
+      --soft-rose: #F8F2F0;
+      --text:      #2D1810;
+      --muted:     #9C8880;
+      --border:    rgba(151,122,92,0.18);
+    }
+    html, body { height: 100%; }
+    body { font-family: 'DM Sans', system-ui, sans-serif; background: var(--bg); color: var(--text); max-width: 430px; margin: 0 auto; min-height: 100vh; -webkit-font-smoothing: antialiased; }
+
+    /* HEADER */
+    .header { padding: 52px 24px 14px; background: linear-gradient(180deg, rgba(182,154,148,0.14) 0%, transparent 100%); }
+    .header-row { display: flex; align-items: flex-start; justify-content: space-between; }
+    .day-name { font-family: 'Cormorant Garamond', serif; font-size: 44px; font-weight: 400; line-height: 1; color: var(--green-dk); letter-spacing: -0.01em; }
+    .date-sub { font-size: 13px; color: var(--muted); margin-top: 5px; font-weight: 300; }
+    .streak-badge { display: flex; flex-direction: column; align-items: center; background: var(--soft-rose); border-radius: 18px; padding: 10px 18px; border: 1px solid rgba(182,154,148,0.35); min-width: 72px; }
+    .streak-num { font-family: 'Cormorant Garamond', serif; font-size: 30px; font-weight: 600; color: var(--rose-dk); line-height: 1; }
+    .streak-label { font-size: 10px; color: var(--rose); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 3px; }
+
+    /* TIMER BANNER */
+    .timer-banner { position: fixed; top: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 430px; background: var(--green-dk); color: white; padding: 12px 20px; display: flex; align-items: center; gap: 10px; z-index: 200; }
+    .timer-title { flex: 1; font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .timer-time { font-family: 'Cormorant Garamond', serif; font-size: 22px; font-weight: 600; min-width: 54px; text-align: center; }
+    .timer-done { font-size: 11px; opacity: 0.7; text-align: center; }
+    .timer-btn { background: rgba(255,255,255,0.2); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+
+    /* TABS */
+    .tabs { display: flex; padding: 0 24px; border-bottom: 1px solid var(--border); background: var(--bg); position: sticky; top: 0; z-index: 20; }
+    .tab { flex: 1; padding: 13px 6px; border: none; background: none; font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color 0.2s, border-color 0.2s; }
+    .tab.active { color: var(--rose-dk); border-bottom-color: var(--rose); font-weight: 500; }
+
+    /* CONTENT */
+    .content { padding: 18px 24px 120px; }
+
+    /* SLOT SECTION */
+    .slot-section { margin-bottom: 24px; }
+    .slot-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent; }
+    .slot-icon { font-size: 15px; }
+    .slot-name { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.12em; }
+    .slot-count { font-size: 11px; border-radius: 10px; padding: 2px 8px; font-weight: 500; opacity: 0.75; }
+    .slot-chevron { margin-left: auto; color: var(--muted); font-size: 14px; transition: transform 0.2s; display: inline-block; }
+    .slot-chevron.open { transform: rotate(90deg); }
+
+    /* TASK CARD */
+    .task-card { background: var(--card); border-radius: 14px; padding: 13px 12px 13px 18px; margin-bottom: 8px; display: flex; align-items: flex-start; gap: 10px; border: 1px solid var(--border); transition: opacity 0.25s; position: relative; overflow: hidden; }
+    .task-card.done { opacity: 0.42; }
+    .task-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; border-radius: 14px 0 0 14px; }
+    .task-card.p-haute::before   { background: var(--brown); }
+    .task-card.p-moyenne::before { background: var(--rose); }
+    .task-card.p-basse::before   { background: var(--green); }
+    .task-check { width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid var(--border); background: none; cursor: pointer; flex-shrink: 0; margin-top: 2px; display: flex; align-items: center; justify-content: center; transition: all 0.2s; -webkit-tap-highlight-color: transparent; }
+    .task-check:active { transform: scale(0.88); }
+    .task-check.checked { background: var(--green); border-color: var(--green); }
+    .check-icon { color: white; font-size: 13px; font-weight: 700; }
+    .task-body { flex: 1; min-width: 0; }
+    .task-title { font-size: 15px; font-weight: 400; color: var(--text); line-height: 1.35; }
+    .task-title.done-text { text-decoration: line-through; color: var(--muted); }
+    .task-meta { display: flex; gap: 6px; margin-top: 6px; align-items: center; flex-wrap: wrap; }
+    .task-dur { font-size: 11px; color: var(--muted); }
+    .task-chip { font-size: 10px; padding: 2px 8px; border-radius: 8px; font-weight: 500; white-space: nowrap; }
+    .chip-haute   { background: rgba(151,122,92,0.12); color: #8B572A; }
+    .chip-moyenne { background: rgba(182,154,148,0.18); color: var(--rose-dk); }
+    .chip-basse   { background: rgba(139,162,136,0.17); color: #5a7a57; }
+    .chip-cat { font-size: 11px; padding: 2px 8px; border-radius: 8px; background: rgba(36,61,31,0.08); color: var(--green-dk); white-space: nowrap; }
+    .chip-sched { font-size: 11px; padding: 2px 8px; border-radius: 8px; background: rgba(182,154,148,0.15); color: var(--rose-dk); white-space: nowrap; }
+    .task-menu-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 18px; padding: 2px 6px; flex-shrink: 0; line-height: 1; letter-spacing: 1px; -webkit-tap-highlight-color: transparent; opacity: 0.5; transition: opacity 0.2s; }
+    .task-menu-btn:hover { opacity: 1; }
+
+    /* SLOT ADD BTN */
+    .slot-add-btn { background: none; border: 1px dashed var(--border); border-radius: 12px; padding: 10px 16px; width: 100%; text-align: left; color: var(--muted); font-size: 13px; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.2s; }
+    .slot-add-btn:hover { border-color: var(--rose); color: var(--rose-dk); background: var(--soft-rose); }
+
+    /* CELEBRATION */
+    .celebration { text-align: center; padding: 11px; background: rgba(139,162,136,0.13); border-radius: 11px; margin-bottom: 8px; font-size: 13px; color: #5a7a57; }
+
+    /* EMPTY STATE */
+    .empty { text-align: center; padding: 48px 24px; color: var(--muted); }
+    .empty-icon { font-size: 40px; margin-bottom: 10px; }
+    .empty-text { font-size: 14px; line-height: 1.6; }
+
+    /* FAB AREA */
+    .fab-area { position: fixed; bottom: 28px; right: max(calc(50vw - 215px + 24px), 24px); display: flex; gap: 12px; align-items: center; z-index: 50; }
+    .fab-voice { width: 48px; height: 48px; border-radius: 50%; background: var(--soft-rose); border: 1.5px solid rgba(182,154,148,0.4); font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 3px 12px rgba(182,154,148,0.3); transition: all 0.2s; position: relative; -webkit-tap-highlight-color: transparent; }
+    .fab-voice.listening { animation: pulse 1s ease-in-out infinite; border-color: var(--rose); }
+    @keyframes pulse { 0%,100%{box-shadow:0 3px 12px rgba(182,154,148,0.3)} 50%{box-shadow:0 3px 22px rgba(182,154,148,0.6)} }
+    .fab-voice-label { position: absolute; bottom: -18px; left: 50%; transform: translateX(-50%); font-size: 9px; color: var(--rose-dk); white-space: nowrap; font-family: 'DM Sans', sans-serif; }
+    .fab { width: 56px; height: 56px; border-radius: 50%; background: var(--green-dk); color: white; border: none; font-size: 28px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 20px rgba(36,61,31,0.35); transition: transform 0.15s; -webkit-tap-highlight-color: transparent; }
+    .fab:active { transform: scale(0.93); }
+
+    /* LISTENING OVERLAY */
+    .listen-overlay { position: fixed; inset: 0; background: rgba(36,61,31,0.55); backdrop-filter: blur(6px); z-index: 300; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; animation: fadeIn 0.2s; }
+    @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+    .listen-ring { width: 100px; height: 100px; border-radius: 50%; background: rgba(182,154,148,0.22); display: flex; align-items: center; justify-content: center; font-size: 44px; animation: pulse 1.2s ease-in-out infinite; }
+    .listen-text { font-family: 'Cormorant Garamond', serif; font-size: 26px; color: white; }
+    .listen-hint { font-size: 13px; color: rgba(255,255,255,0.6); }
+    .listen-cancel { margin-top: 10px; background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 10px 28px; border-radius: 20px; font-family: 'DM Sans', sans-serif; font-size: 14px; cursor: pointer; }
+
+    /* CONTEXT MENU SHEET */
+    .sheet-overlay { position: fixed; inset: 0; background: rgba(45,24,16,0.35); backdrop-filter: blur(4px); z-index: 100; display: flex; align-items: flex-end; animation: fadeIn 0.2s; }
+    .context-sheet { background: var(--bg); width: 100%; max-width: 430px; margin: 0 auto; border-radius: 24px 24px 0 0; padding: 16px 0 40px; animation: slideUp 0.25s cubic-bezier(0.34,1.36,0.64,1); }
+    @keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
+    .sheet-handle { width: 36px; height: 4px; background: rgba(182,154,148,0.35); border-radius: 2px; margin: 0 auto 14px; }
+    .context-task-title { font-family: 'Cormorant Garamond', serif; font-size: 18px; color: var(--green-dk); padding: 0 24px 14px; border-bottom: 1px solid var(--border); }
+    .context-option { display: flex; align-items: center; gap: 14px; padding: 16px 24px; cursor: pointer; transition: background 0.15s; -webkit-tap-highlight-color: transparent; }
+    .context-option:hover { background: var(--soft); }
+    .context-option:active { background: var(--soft-rose); }
+    .ctx-icon { font-size: 20px; width: 28px; text-align: center; flex-shrink: 0; }
+    .ctx-label { font-size: 15px; color: var(--text); }
+    .ctx-label.danger { color: #c0392b; }
+    .ctx-divider { height: 1px; background: var(--border); margin: 4px 0; }
+
+    /* PLANIFY SHEET */
+    .planify-sheet { background: var(--bg); width: 100%; max-width: 430px; margin: 0 auto; border-radius: 24px 24px 0 0; padding: 20px 24px 40px; animation: slideUp 0.28s cubic-bezier(0.34,1.36,0.64,1); }
+    .sheet-title { font-family: 'Cormorant Garamond', serif; font-size: 24px; color: var(--green-dk); margin-bottom: 6px; }
+    .sheet-subtitle { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+
+    /* MODAL / FORM SHEET */
+    .modal-sheet { background: var(--bg); width: 100%; max-width: 430px; margin: 0 auto; border-radius: 26px 26px 0 0; padding: 20px 24px 44px; animation: slideUp 0.28s cubic-bezier(0.34,1.36,0.64,1); max-height: 92vh; overflow-y: auto; }
+    .modal-handle { width: 36px; height: 4px; background: rgba(182,154,148,0.35); border-radius: 2px; margin: 0 auto 20px; }
+    .modal-title { font-family: 'Cormorant Garamond', serif; font-size: 26px; color: var(--green-dk); margin-bottom: 20px; }
+
+    /* FORM ELEMENTS */
+    .form-group { margin-bottom: 16px; }
+    .form-label { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 8px; display: block; }
+    .title-row { display: flex; gap: 8px; align-items: center; }
+    .form-input { padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); font-family: 'DM Sans', sans-serif; font-size: 15px; color: var(--text); outline: none; transition: border-color 0.2s; -webkit-appearance: none; width: 100%; }
+    .form-input:focus { border-color: var(--rose); }
+    .form-textarea { resize: none; min-height: 68px; }
+    .voice-inline-btn { flex-shrink: 0; width: 44px; height: 44px; border-radius: 12px; border: 1px solid rgba(182,154,148,0.35); background: var(--soft-rose); font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+    .voice-inline-btn.listening { border-color: var(--rose); background: rgba(182,154,148,0.25); }
+    .chips-row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .chip-sel { padding: 8px 14px; border: 1px solid var(--border); border-radius: 20px; background: var(--card); font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--muted); cursor: pointer; transition: all 0.15s; -webkit-tap-highlight-color: transparent; }
+    .chip-sel.sel { background: var(--green-dk); border-color: var(--green-dk); color: white; }
+    .cat-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+    .cat-chip-btn { padding: 7px 12px; border: 1px solid var(--border); border-radius: 16px; background: var(--card); font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--text); cursor: pointer; transition: all 0.15s; display: flex; align-items: center; gap: 5px; -webkit-tap-highlight-color: transparent; }
+    .cat-chip-btn.sel { background: rgba(36,61,31,0.1); border-color: var(--green-dk); color: var(--green-dk); font-weight: 500; }
+    .cat-chip-btn.custom { border-style: dashed; }
+    .new-cat-form { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+    .emoji-input { width: 52px; text-align: center; font-size: 20px; padding: 8px 6px; border: 1px solid var(--border); border-radius: 10px; background: var(--card); font-family: inherit; outline: none; flex-shrink: 0; -webkit-appearance: none; }
+    .emoji-input:focus { border-color: var(--rose); }
+    .new-cat-confirm { flex-shrink: 0; width: 38px; height: 38px; border-radius: 10px; background: var(--green-dk); border: none; color: white; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .new-cat-cancel { flex-shrink: 0; width: 38px; height: 38px; border-radius: 10px; background: var(--soft); border: 1px solid var(--border); color: var(--muted); font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .add-cat-btn { padding: 7px 12px; border: 1px dashed rgba(182,154,148,0.5); border-radius: 16px; background: none; font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--muted); cursor: pointer; transition: all 0.15s; display: flex; align-items: center; gap: 5px; }
+    .add-cat-btn:hover { border-color: var(--rose); color: var(--rose-dk); background: var(--soft-rose); }
+    .delete-cat { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; border-radius: 50%; background: rgba(36,61,31,0.15); color: var(--green-dk); font-size: 9px; font-weight: 700; cursor: pointer; margin-left: 2px; line-height: 1; flex-shrink: 0; }
+    .btn-main { width: 100%; padding: 15px; border-radius: 14px; border: none; background: var(--green-dk); color: white; font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 500; cursor: pointer; margin-top: 8px; transition: opacity 0.2s; -webkit-tap-highlight-color: transparent; }
+    .btn-main:disabled { opacity: 0.35; cursor: default; }
+    .btn-secondary { width: 100%; padding: 12px; border-radius: 14px; border: 1px solid var(--border); background: transparent; color: var(--muted); font-family: 'DM Sans', sans-serif; font-size: 14px; cursor: pointer; margin-top: 8px; }
+
+    /* CAT FILTER */
+    .cat-filter-row { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 12px; scrollbar-width: none; }
+    .cat-filter-row::-webkit-scrollbar { display: none; }
+    .cat-filter-chip { padding: 6px 12px; border: 1px solid var(--border); border-radius: 16px; background: var(--card); font-family: 'DM Sans', sans-serif; font-size: 12px; color: var(--muted); cursor: pointer; white-space: nowrap; transition: all 0.15s; }
+    .cat-filter-chip.active { background: var(--green-dk); border-color: var(--green-dk); color: white; }
+
+    /* PRIO LIST */
+    .prio-header { display: flex; align-items: center; gap: 9px; margin: 20px 0 10px; }
+    .prio-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .prio-name { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); }
+    .prio-count { font-size: 11px; color: var(--muted); margin-left: auto; }
+
+    /* STATS */
+    .stats-card { background: var(--card); border-radius: 18px; padding: 20px; margin-bottom: 14px; border: 1px solid var(--border); }
+    .stats-h { font-family: 'Cormorant Garamond', serif; font-size: 20px; color: var(--green-dk); margin-bottom: 14px; }
+    .stats-row { display: flex; justify-content: space-around; margin-bottom: 14px; }
+    .stats-num { font-family: 'Cormorant Garamond', serif; font-size: 36px; line-height: 1; }
+    .stats-lbl { font-size: 11px; color: var(--muted); margin-top: 3px; }
+    .prog-bg { height: 6px; background: var(--soft); border-radius: 3px; overflow: hidden; }
+    .prog-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--green), var(--rose)); transition: width 0.6s ease; }
+    .week-wrap { display: flex; justify-content: space-between; margin-top: 14px; }
+    .week-col { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+    .w-dot { width: 32px; height: 32px; border-radius: 50%; background: var(--soft); display: flex; align-items: center; justify-content: center; font-size: 11px; color: var(--muted); font-weight: 500; }
+    .w-dot.done-day { background: var(--green); color: white; }
+    .w-dot.today { background: var(--rose); color: white; }
+    .w-lbl { font-size: 9px; color: var(--muted); }
+    .data-row { display: flex; gap: 10px; margin-top: 4px; }
+    .btn-data { flex: 1; padding: 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--card); font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--text); cursor: pointer; text-align: center; transition: all 0.15s; }
+    .btn-data:hover { border-color: var(--rose); color: var(--rose-dk); }
+    .btn-data.green:hover { border-color: var(--green-dk); color: var(--green-dk); }
+
+    ::-webkit-scrollbar { width: 3px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(182,154,148,0.3); border-radius: 2px; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+  const { useState, useEffect, useCallback, useRef } = React;
+
+  // ── CONSTANTS ──────────────────────────────────────
+  const SLOTS = [
+    { id: 'Matin',      icon: '☀️',  label: 'Matin',      color: '#CEA39B', bg: 'rgba(206,163,155,0.12)' },
+    { id: 'Après-midi', icon: '🌤️', label: 'Après-midi', color: '#977A5C', bg: 'rgba(151,122,92,0.10)' },
+    { id: 'Soir',       icon: '🌙',  label: 'Soir',       color: '#243D1F', bg: 'rgba(36,61,31,0.10)' },
+    { id: 'Flexible',   icon: '✦',   label: 'Flexible',   color: '#8BA288', bg: 'rgba(139,162,136,0.12)' },
+  ];
+  const PRIORITIES  = ['Haute', 'Moyenne', 'Basse'];
+  const DURATIONS   = [15, 30, 45, 60, 90, 120];
+  const PRIO_COLORS = { Haute: '#977A5C', Moyenne: '#B69A94', Basse: '#8BA288' };
+  const DEFAULT_CATS = [
+    { id: 'cabinet',   icon: '🌿', label: 'Cabinet' },
+    { id: 'clients',   icon: '💌', label: 'Clients' },
+    { id: 'admin',     icon: '📋', label: 'Admin' },
+    { id: 'reseaux',   icon: '📱', label: 'Réseaux' },
+    { id: 'creation',  icon: '✨', label: 'Création' },
+    { id: 'soin',      icon: '💆', label: 'Soin de soi' },
+    { id: 'corps',     icon: '🏋️', label: 'Corps' },
+    { id: 'maison',    icon: '🏠', label: 'Maison' },
+    { id: 'famille',   icon: '👧', label: 'Famille' },
+    { id: 'formation', icon: '📚', label: 'Formation' },
+    { id: 'finance',   icon: '💰', label: 'Finance' },
+    { id: 'social',    icon: '💬', label: 'Social' },
+  ];
+
+  // ── UTILS ──────────────────────────────────────────
+  const todayKey = () => new Date().toISOString().split('T')[0];
+  const ydayKey  = () => { const d=new Date(); d.setDate(d.getDate()-1); return d.toISOString().split('T')[0]; };
+  const addDays  = (n) => { const d=new Date(); d.setDate(d.getDate()+n); return d.toISOString().split('T')[0]; };
+  const fmtDur   = (m) => m<60 ? `${m} min` : (m%60===0 ? `${m/60}h` : `${Math.floor(m/60)}h${m%60}`);
+  const fmtSec   = (s) => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+  const DAY_FR   = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+  const MON_FR   = ['jan','fév','mar','avr','mai','juin','juil','août','sep','oct','nov','déc'];
+  const DAY_SH   = ['D','L','M','M','J','V','S'];
+  const getDayName = () => DAY_FR[new Date().getDay()];
+  const getDateStr = () => { const d=new Date(); return `${d.getDate()} ${MON_FR[d.getMonth()]} ${d.getFullYear()}`; };
+
+  const DATE_OPTS = () => {
+    const opts = [{ key: todayKey(), label: "Aujourd'hui" }];
+    for (let i=1; i<=5; i++) {
+      const d = new Date(); d.setDate(d.getDate()+i);
+      const k = d.toISOString().split('T')[0];
+      const lbl = i===1 ? 'Demain' : DAY_FR[d.getDay()];
+      opts.push({ key: k, label: lbl });
+    }
+    return opts;
+  };
+
+  const fmtDateLabel = (dateKey) => {
+    if (!dateKey) return '';
+    const t = todayKey(), y = addDays(1);
+    if (dateKey===t) return "aujourd'hui";
+    if (dateKey===y) return 'demain';
+    const d = new Date(dateKey+'T12:00:00');
+    return DAY_FR[d.getDay()].toLowerCase();
+  };
+
+  // ── STORAGE ────────────────────────────────────────
+  const load = (k,def) => { try { return JSON.parse(localStorage.getItem(k)) ?? def; } catch { return def; } };
+  const save = (k,v)   => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+  const KEYS = { tasks:'flow_v4', streak:'flow_streak_v1', history:'flow_history_v1', cats:'flow_custom_cats_v1' };
+
+  const migrateTasks = (tasks) => tasks.map(t => ({
+    ...t,
+    categories: Array.isArray(t.categories) ? t.categories : (t.category ? [t.category] : []),
+    scheduledDate: t.scheduledDate ?? null,
+  }));
+
+  // ── STREAK ─────────────────────────────────────────
+  function bumpStreak(streak, history) {
+    const t=todayKey(), y=ydayKey();
+    if (streak.lastDate===t) return { streak, history };
+    const nh = { ...history, [t]: true };
+    const nc = streak.lastDate===y ? streak.count+1 : 1;
+    const ns = { count: nc, lastDate: t };
+    save(KEYS.streak, ns); save(KEYS.history, nh);
+    return { streak: ns, history: nh };
+  }
+
+  // ── VOICE ──────────────────────────────────────────
+  function useVoice() {
+    const [listening, setListening] = useState(false);
+    const recRef = useRef(null);
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const start = (onResult) => {
+      if (!SR) return false;
+      const r = new SR();
+      recRef.current = r;
+      r.lang = 'fr-FR'; r.interimResults = false; r.maxAlternatives = 1;
+      r.onstart  = () => setListening(true);
+      r.onresult = (e) => { setListening(false); onResult(e.results[0][0].transcript); };
+      r.onerror  = () => setListening(false);
+      r.onend    = () => setListening(false);
+      r.start(); return true;
+    };
+    const stop = () => { if (recRef.current) recRef.current.stop(); setListening(false); };
+    return { listening, supported: !!SR, start, stop };
+  }
+
+  // ── TASK CARD ──────────────────────────────────────
+  function TaskCard({ task, allCats, onToggle, onMenu, showDate }) {
+    const pKey = task.priority.toLowerCase();
+    const cats = (task.categories||[]).map(id => allCats.find(c=>c.id===id)).filter(Boolean);
+    return (
+      <div className={`task-card p-${pKey} ${task.done?'done':''}`}>
+        <button className={`task-check ${task.done?'checked':''}`} onClick={() => onToggle(task.id)}>
+          {task.done && <span className="check-icon">✓</span>}
+        </button>
+        <div className="task-body">
+          <div className={`task-title ${task.done?'done-text':''}`}>{task.title}</div>
+          <div className="task-meta">
+            <span className="task-dur">⏱ {fmtDur(task.duration)}</span>
+            <span className={`task-chip chip-${pKey}`}>{task.priority}</span>
+            {showDate && task.scheduledDate && <span className="chip-sched">📅 {fmtDateLabel(task.scheduledDate)}</span>}
+            {cats.map(c => <span key={c.id} className="chip-cat">{c.icon} {c.label}</span>)}
+          </div>
+        </div>
+        <button className="task-menu-btn" onClick={() => onMenu(task)}>···</button>
+      </div>
+    );
+  }
+
+  // ── SLOT SECTION (day view) ────────────────────────
+  function SlotSection({ slot, tasks, allCats, onToggle, onMenu, onAddToSlot }) {
+    const [open, setOpen] = useState(true);
+    const t = todayKey();
+    const undone    = tasks.filter(tk => !tk.done);
+    const doneToday = tasks.filter(tk => tk.done && tk.doneDate===t);
+    const allDone   = undone.length===0 && doneToday.length>0;
+    const visible   = [...undone, ...doneToday];
+    return (
+      <div className="slot-section">
+        <div className="slot-header" onClick={() => setOpen(o=>!o)}>
+          <span className="slot-icon">{slot.icon}</span>
+          <span className="slot-name" style={{color:slot.color}}>{slot.label}</span>
+          <span className="slot-count" style={{background:slot.bg, color:slot.color}}>{undone.length}</span>
+          <span className={`slot-chevron ${open?'open':''}`}>›</span>
+        </div>
+        {open && <>
+          {allDone && <div className="celebration">✨ Tout terminé !</div>}
+          {visible.length===0 && !allDone && <div style={{color:'var(--muted)',fontSize:13,padding:'2px 0 8px',fontStyle:'italic'}}>Rien ici…</div>}
+          {visible.map(t => <TaskCard key={t.id} task={t} allCats={allCats} onToggle={onToggle} onMenu={onMenu} />)}
+          <button className="slot-add-btn" onClick={() => onAddToSlot(slot.id)}>+ Ajouter ici</button>
+        </>}
+      </div>
+    );
+  }
+
+  // ── DAY VIEW ───────────────────────────────────────
+  function DayView({ tasks, allCats, onToggle, onMenu, onAddToSlot }) {
+    const t = todayKey();
+    const scheduled = tasks.filter(tk => tk.scheduledDate===t);
+    const hasAny = scheduled.length > 0;
+    return (
+      <div className="content">
+        {!hasAny ? (
+          <div className="empty">
+            <div className="empty-icon">📅</div>
+            <div className="empty-text">Rien de planifié pour aujourd'hui.<br/>Va dans "À faire" pour organiser ta journée.</div>
+          </div>
+        ) : (
+          SLOTS.map(slot => (
+            <SlotSection key={slot.id} slot={slot} allCats={allCats}
+              tasks={scheduled.filter(t => t.slot===slot.id)}
+              onToggle={onToggle} onMenu={onMenu} onAddToSlot={onAddToSlot}
+            />
+          ))
+        )}
+      </div>
+    );
+  }
+
+  // ── BACKLOG VIEW ───────────────────────────────────
+  function BacklogView({ tasks, allCats, onToggle, onMenu }) {
+    const [catFilter, setCatFilter] = useState(null);
+    const t = todayKey();
+    // Show unscheduled + overdue (scheduled before today, not done)
+    const backlog = tasks.filter(tk => !tk.done && (!tk.scheduledDate || tk.scheduledDate < t));
+    const overdue = backlog.filter(tk => tk.scheduledDate && tk.scheduledDate < t);
+    const unscheduled = backlog.filter(tk => !tk.scheduledDate);
+    const usedCats = allCats.filter(c => backlog.some(t => (t.categories||[]).includes(c.id)));
+    const filtered = catFilter ? backlog.filter(t => (t.categories||[]).includes(catFilter)) : backlog;
+
+    if (backlog.length===0) return (
+      <div className="content">
+        <div className="empty">
+          <div className="empty-icon">🌿</div>
+          <div className="empty-text">Tout est planifié ou terminé.<br/>Belle organisation !</div>
+        </div>
+      </div>
+    );
+    return (
+      <div className="content">
+        {usedCats.length>0 && (
+          <div className="cat-filter-row">
+            <button className={`cat-filter-chip ${!catFilter?'active':''}`} onClick={() => setCatFilter(null)}>Toutes</button>
+            {usedCats.map(c => (
+              <button key={c.id} className={`cat-filter-chip ${catFilter===c.id?'active':''}`}
+                onClick={() => setCatFilter(catFilter===c.id ? null : c.id)}>{c.icon} {c.label}</button>
+            ))}
+          </div>
+        )}
+        {overdue.length>0 && (!catFilter || overdue.some(t=>(t.categories||[]).includes(catFilter))) && (
+          <div style={{marginBottom:16}}>
+            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
+              <div style={{width:8,height:8,borderRadius:'50%',background:'#c0392b',flexShrink:0}}/>
+              <span style={{fontSize:11,fontWeight:500,textTransform:'uppercase',letterSpacing:'0.12em',color:'#c0392b'}}>En retard</span>
+              <span style={{fontSize:11,color:'var(--muted)',marginLeft:'auto'}}>{overdue.length}</span>
+            </div>
+            {(catFilter ? overdue.filter(t=>(t.categories||[]).includes(catFilter)) : overdue)
+              .map(t => <TaskCard key={t.id} task={t} allCats={allCats} onToggle={onToggle} onMenu={onMenu} showDate />)}
+          </div>
+        )}
+        {PRIORITIES.map(p => {
+          const pts = (catFilter ? unscheduled.filter(t=>(t.categories||[]).includes(catFilter)) : unscheduled)
+            .filter(t => t.priority===p);
+          if (!pts.length) return null;
+          return (
+            <div key={p}>
+              <div className="prio-header">
+                <div className="prio-dot" style={{background:PRIO_COLORS[p]}}/>
+                <span className="prio-name">{p}</span>
+                <span className="prio-count">{pts.length}</span>
+              </div>
+              {pts.map(t => <TaskCard key={t.id} task={t} allCats={allCats} onToggle={onToggle} onMenu={onMenu} />)}
+            </div>
+          );
+        })}
+        {filtered.length===0 && catFilter && (
+          <div style={{color:'var(--muted)',fontSize:14,textAlign:'center',padding:'32px 0',fontStyle:'italic'}}>Aucune tâche dans cette catégorie</div>
+        )}
+      </div>
+    );
+  }
+
+  // ── STATS VIEW ─────────────────────────────────────
+  function StatsView({ tasks, streak, history, onImport }) {
+    const t = todayKey();
+    const doneToday = tasks.filter(tk=>tk.done&&tk.doneDate===t).length;
+    const undoneN   = tasks.filter(tk=>!tk.done).length;
+    const total     = doneToday+undoneN;
+    const rate      = total===0 ? 0 : Math.round((doneToday/total)*100);
+    const totalEver = tasks.filter(tk=>tk.done).length;
+    const last7 = Array.from({length:7},(_,i)=>{
+      const d=new Date(); d.setDate(d.getDate()-(6-i));
+      const key=d.toISOString().split('T')[0];
+      return {key,letter:DAY_SH[d.getDay()],isToday:key===t,hasDone:!!history[key]};
+    });
+    const exportData = () => {
+      const blob = new Blob([JSON.stringify({exportDate:new Date().toISOString(),tasks,streak,history},null,2)],{type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href=url; a.download=`cocci-flow-${t}.json`; a.click(); URL.revokeObjectURL(url);
+    };
+    const fileRef = useRef();
+    const handleFile = (e) => {
+      const file=e.target.files[0]; if(!file) return;
+      const r=new FileReader();
+      r.onload=(ev) => { try { const d=JSON.parse(ev.target.result); if(d.tasks) onImport(d); else alert('Fichier invalide'); } catch{alert('Impossible de lire');} };
+      r.readAsText(file); e.target.value='';
+    };
+    return (
+      <div className="content">
+        <div className="stats-card">
+          <div className="stats-h">Aujourd'hui</div>
+          <div className="stats-row">
+            <div style={{textAlign:'center'}}><div className="stats-num" style={{color:'var(--green)'}}>{doneToday}</div><div className="stats-lbl">terminées</div></div>
+            <div style={{textAlign:'center'}}><div className="stats-num" style={{color:'var(--green-dk)'}}>{undoneN}</div><div className="stats-lbl">restantes</div></div>
+            <div style={{textAlign:'center'}}><div className="stats-num" style={{color:'var(--rose-dk)'}}>{rate}%</div><div className="stats-lbl">complétées</div></div>
+          </div>
+          <div className="prog-bg"><div className="prog-fill" style={{width:`${rate}%`}}/></div>
+        </div>
+        <div className="stats-card">
+          <div className="stats-h">Série 🔥</div>
+          <div style={{display:'flex',alignItems:'center',gap:14,marginBottom:16}}>
+            <div style={{fontFamily:'Cormorant Garamond,serif',fontSize:52,color:'var(--rose)',lineHeight:1}}>{streak.count}</div>
+            <div>
+              <div style={{fontSize:15,color:'var(--text)',fontWeight:500}}>jour{streak.count!==1?'s':''} consécutif{streak.count!==1?'s':''}</div>
+              <div style={{fontSize:12,color:'var(--muted)',marginTop:2}}>{streak.count>=5?'Incroyable 🌿':streak.count>=3?'Belle lancée ✨':'Continue !'}</div>
+            </div>
+          </div>
+          <div className="week-wrap">
+            {last7.map(d=>(
+              <div key={d.key} className="week-col">
+                <div className={`w-dot ${d.isToday?'today':d.hasDone?'done-day':''}`}>{d.letter}</div>
+                <div className="w-lbl">{d.isToday?'auj.':''}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="stats-card" style={{textAlign:'center',padding:'24px 20px'}}>
+          <div style={{fontSize:13,color:'var(--muted)',marginBottom:6}}>Au total</div>
+          <div style={{fontFamily:'Cormorant Garamond,serif',fontSize:56,color:'var(--green-dk)',lineHeight:1}}>{totalEver}</div>
+          <div style={{fontSize:13,color:'var(--muted)',marginTop:6}}>tâches accomplies ✨</div>
+        </div>
+        <div className="stats-card">
+          <div className="stats-h">Partager avec Claude</div>
+          <div style={{fontSize:13,color:'var(--muted)',marginBottom:14,lineHeight:1.6}}>Exporte tes tâches → colle-les dans une conversation Claude → je trie et priorise → tu réimportes.</div>
+          <div className="data-row">
+            <button className="btn-data green" onClick={exportData}>📤 Exporter</button>
+            <button className="btn-data" onClick={() => fileRef.current?.click()}>📥 Importer</button>
+            <input ref={fileRef} type="file" accept=".json" style={{display:'none'}} onChange={handleFile}/>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── PLANIFY SHEET ──────────────────────────────────
+  function PlanifySheet({ task, onClose, onPlanify }) {
+    const [selDate, setSelDate] = useState(todayKey());
+    const [selSlot, setSelSlot] = useState(task.slot || 'Matin');
+    const dates = DATE_OPTS();
+    return (
+      <div className="sheet-overlay" onClick={e => e.target===e.currentTarget && onClose()}>
+        <div className="planify-sheet">
+          <div className="sheet-handle"/>
+          <div className="sheet-title">Planifier</div>
+          <div className="sheet-subtitle" style={{marginBottom:16}}>"{task.title.length>40?task.title.slice(0,40)+'…':task.title}"</div>
+          <div className="form-group">
+            <label className="form-label">Quand ?</label>
+            <div className="chips-row">
+              {dates.map(d => (
+                <button key={d.key} className={`chip-sel ${selDate===d.key?'sel':''}`} onClick={() => setSelDate(d.key)}>{d.label}</button>
+              ))}
+            </div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Quel moment ?</label>
+            <div className="chips-row">
+              {SLOTS.map(s => (
+                <button key={s.id} className={`chip-sel ${selSlot===s.id?'sel':''}`} onClick={() => setSelSlot(s.id)}>{s.icon} {s.label}</button>
+              ))}
+            </div>
+          </div>
+          {task.scheduledDate && (
+            <button className="btn-secondary" style={{marginBottom:0}} onClick={() => onPlanify(null, task.slot)}>
+              Retirer du planning
+            </button>
+          )}
+          <button className="btn-main" onClick={() => onPlanify(selDate, selSlot)}>Planifier</button>
+          <button className="btn-secondary" onClick={onClose}>Annuler</button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── CONTEXT MENU ───────────────────────────────────
+  function ContextMenu({ task, onClose, onPlanify, onEdit, onDuplicate, onStartTimer, onDelete }) {
+    const opts = [
+      { icon: '📅', label: task.scheduledDate ? 'Replanifier' : 'Planifier', action: onPlanify },
+      { icon: '▶️', label: 'Démarrer la tâche', action: onStartTimer },
+      { icon: '📋', label: 'Faire une copie', action: onDuplicate },
+      { icon: '✏️', label: 'Modifier la tâche', action: onEdit },
+    ];
+    return (
+      <div className="sheet-overlay" onClick={e => e.target===e.currentTarget && onClose()}>
+        <div className="context-sheet">
+          <div className="sheet-handle"/>
+          <div className="context-task-title">{task.title.length>50?task.title.slice(0,50)+'…':task.title}</div>
+          {opts.map(o => (
+            <div key={o.label} className="context-option" onClick={() => { o.action(); onClose(); }}>
+              <span className="ctx-icon">{o.icon}</span>
+              <span className="ctx-label">{o.label}</span>
+            </div>
+          ))}
+          <div className="ctx-divider"/>
+          <div className="context-option" onClick={() => { onDelete(); onClose(); }}>
+            <span className="ctx-icon">🗑️</span>
+            <span className="ctx-label danger">Supprimer la tâche</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── TASK FORM SHEET ────────────────────────────────
+  function TaskFormSheet({ onClose, onSave, initial, allCats, customCatIds, onAddCustomCat, onDeleteCustomCat, defaultSlot, defaultDate }) {
+    const isEdit = !!initial;
+    const [title,      setTitle]      = useState(initial?.title || '');
+    const [priority,   setPriority]   = useState(initial?.priority || 'Moyenne');
+    const [slot,       setSlot]       = useState(initial?.slot || defaultSlot || 'Flexible');
+    const [duration,   setDuration]   = useState(initial?.duration || 30);
+    const [categories, setCategories] = useState(initial?.categories || []);
+    const [notes,      setNotes]      = useState(initial?.notes || '');
+    const [showNewCat, setShowNewCat] = useState(false);
+    const [newIcon,    setNewIcon]    = useState('');
+    const [newLabel,   setNewLabel]   = useState('');
+    const { listening, start, stop }  = useVoice();
+
+    const toggleCat = (id) => setCategories(p => p.includes(id) ? p.filter(c=>c!==id) : [...p,id]);
+
+    const handleMic = () => {
+      if (listening) { stop(); return; }
+      const ok = start(text => setTitle(t => t ? t+' '+text : text));
+      if (!ok) alert("Reconnaissance vocale non disponible. Essaie Chrome sur desktop ou Android.");
+    };
+
+    const handleAddCat = () => {
+      if (!newLabel.trim()) return;
+      const cat = { id:'custom_'+Date.now(), icon: newIcon.trim()||'🏷️', label: newLabel.trim() };
+      onAddCustomCat(cat);
+      setCategories(p => [...p, cat.id]);
+      setNewIcon(''); setNewLabel(''); setShowNewCat(false);
+    };
+
+    const handleSave = () => {
+      if (!title.trim()) return;
+      const base = isEdit ? { ...initial } : { id: Date.now().toString(36)+Math.random().toString(36).slice(2), done: false, doneDate: null, createdAt: new Date().toISOString(), scheduledDate: defaultDate || null };
+      onSave({ ...base, title: title.trim(), priority, slot, duration, categories, notes: notes.trim() });
+      onClose();
+    };
+
+    return (
+      <div className="sheet-overlay" onClick={e => e.target===e.currentTarget && onClose()}>
+        <div className="modal-sheet">
+          <div className="modal-handle"/>
+          <div className="modal-title">{isEdit ? 'Modifier la tâche' : 'Nouvelle tâche'}</div>
+          <div className="form-group">
+            <label className="form-label">Titre</label>
+            <div className="title-row">
+              <input className="form-input" placeholder="Qu'est-ce à faire ?" value={title} onChange={e=>setTitle(e.target.value)} onKeyDown={e=>e.key==='Enter'&&handleSave()} autoFocus={!initial}/>
+              <button type="button" className={`voice-inline-btn ${listening?'listening':''}`} onClick={handleMic}>{listening?'🎙️':'🎤'}</button>
+            </div>
+            {listening && <div style={{fontSize:12,color:'var(--rose)',marginTop:6,textAlign:'center'}}>J'écoute…</div>}
+          </div>
+          <div className="form-group">
+            <label className="form-label">Priorité</label>
+            <div className="chips-row">{PRIORITIES.map(p=><button key={p} className={`chip-sel ${priority===p?'sel':''}`} onClick={()=>setPriority(p)}>{p}</button>)}</div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Moment préféré</label>
+            <div className="chips-row">{SLOTS.map(s=><button key={s.id} className={`chip-sel ${slot===s.id?'sel':''}`} onClick={()=>setSlot(s.id)}>{s.icon} {s.label}</button>)}</div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Durée estimée</label>
+            <div className="chips-row">{DURATIONS.map(d=><button key={d} className={`chip-sel ${duration===d?'sel':''}`} onClick={()=>setDuration(d)}>{fmtDur(d)}</button>)}</div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Catégories {categories.length>0 && <span style={{color:'var(--green-dk)',marginLeft:6,textTransform:'none',letterSpacing:0,fontStyle:'normal'}}>{categories.length} choisie{categories.length>1?'s':''}</span>}</label>
+            <div className="cat-grid">
+              {allCats.map(c=>(
+                <button key={c.id} className={`cat-chip-btn ${customCatIds.includes(c.id)?'custom':''} ${categories.includes(c.id)?'sel':''}`} onClick={()=>toggleCat(c.id)}>
+                  {c.icon} {c.label}
+                  {customCatIds.includes(c.id) && <span className="delete-cat" onClick={e=>{e.stopPropagation();onDeleteCustomCat(c.id);setCategories(p=>p.filter(x=>x!==c.id));}}>×</span>}
+                </button>
+              ))}
+              {!showNewCat && <button className="add-cat-btn" onClick={()=>setShowNewCat(true)}>+ Créer</button>}
+            </div>
+            {showNewCat && (
+              <div className="new-cat-form">
+                <input className="emoji-input" placeholder="🌟" maxLength={4} value={newIcon} onChange={e=>setNewIcon(e.target.value)} autoFocus/>
+                <input className="form-input" placeholder="Nom de la catégorie" value={newLabel} onChange={e=>setNewLabel(e.target.value)} onKeyDown={e=>e.key==='Enter'&&handleAddCat()} style={{flex:1}}/>
+                <button className="new-cat-confirm" onClick={handleAddCat}>✓</button>
+                <button className="new-cat-cancel" onClick={()=>{setShowNewCat(false);setNewIcon('');setNewLabel('');}}>✕</button>
+              </div>
+            )}
+          </div>
+          <div className="form-group">
+            <label className="form-label">Notes (optionnel)</label>
+            <textarea className="form-input form-textarea" placeholder="Quelques détails…" value={notes} onChange={e=>setNotes(e.target.value)}/>
+          </div>
+          <button className="btn-main" onClick={handleSave} disabled={!title.trim()}>{isEdit ? 'Enregistrer' : 'Ajouter la tâche'}</button>
+          <button className="btn-secondary" onClick={onClose}>Annuler</button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── TIMER BANNER ───────────────────────────────────
+  function TimerBanner({ timer, onPause, onFinish, onCancel }) {
+    const done = timer.remaining <= 0;
+    return (
+      <div className="timer-banner">
+        <div style={{display:'flex',flexDirection:'column',flex:1,minWidth:0}}>
+          <div className="timer-title">{timer.taskTitle}</div>
+          {done && <div className="timer-done">Temps écoulé !</div>}
+        </div>
+        <div className="timer-time">{done ? '00:00' : fmtSec(timer.remaining)}</div>
+        {!done && <button className="timer-btn" onClick={onPause}>{timer.paused?'▶':'⏸'}</button>}
+        <button className="timer-btn" onClick={done ? onCancel : onFinish} title={done?'Fermer':'Terminer'}>✓</button>
+        {!done && <button className="timer-btn" onClick={onCancel} title="Annuler">✕</button>}
+      </div>
+    );
+  }
+
+  // ── APP ────────────────────────────────────────────
+  function App() {
+    const [tasks,      setTasks]      = useState(() => migrateTasks(load(KEYS.tasks, [])));
+    const [streak,     setStreak]     = useState(() => load(KEYS.streak, {count:0,lastDate:null}));
+    const [history,    setHistory]    = useState(() => load(KEYS.history, {}));
+    const [customCats, setCustomCats] = useState(() => load(KEYS.cats, []));
+    const [tab,        setTab]        = useState('day');
+    const [showForm,   setShowForm]   = useState(false);
+    const [editTask,   setEditTask]   = useState(null);
+    const [ctxTask,    setCtxTask]    = useState(null);
+    const [planTask,   setPlanTask]   = useState(null);
+    const [defSlot,    setDefSlot]    = useState(null);
+    const [defDate,    setDefDate]    = useState(null);
+    const [prefill,    setPrefill]    = useState('');
+    const [timer,      setTimer]      = useState(null);
+    const timerRef = useRef(null);
+    const { listening: voiceOn, supported: voiceOk, start: voiceStart, stop: voiceStop } = useVoice();
+
+    const allCats      = [...DEFAULT_CATS, ...customCats];
+    const customCatIds = customCats.map(c=>c.id);
+
+    useEffect(() => { save(KEYS.tasks, tasks); }, [tasks]);
+    useEffect(() => { save(KEYS.cats, customCats); }, [customCats]);
+
+    // Timer tick
+    useEffect(() => {
+      if (!timer || timer.paused || timer.remaining<=0) { clearInterval(timerRef.current); return; }
+      timerRef.current = setInterval(() => {
+        setTimer(p => p && p.remaining>0 ? {...p, remaining: p.remaining-1} : p);
+      }, 1000);
+      return () => clearInterval(timerRef.current);
+    }, [timer?.paused, timer?.taskId, !!timer]);
+
+    const handleToggle = useCallback((id) => {
+      setTasks(prev => {
+        const task = prev.find(t=>t.id===id); if(!task) return prev;
+        const newDone = !task.done;
+        if (newDone) {
+          const {streak:ns,history:nh} = bumpStreak(streak,history);
+          setStreak(ns); setHistory(nh);
+        }
+        return prev.map(t => t.id===id ? {...t,done:newDone,doneDate:newDone?todayKey():null} : t);
+      });
+    }, [streak, history]);
+
+    const handleSaveTask = useCallback((task) => {
+      setTasks(prev => {
+        const exists = prev.find(t=>t.id===task.id);
+        return exists ? prev.map(t=>t.id===task.id?task:t) : [...prev,task];
+      });
+    }, []);
+
+    const handleDelete = useCallback((id) => setTasks(prev=>prev.filter(t=>t.id!==id)), []);
+
+    const handleDuplicate = useCallback((task) => {
+      setTasks(prev => [...prev, {...task, id:Date.now().toString(36)+Math.random().toString(36).slice(2), done:false, doneDate:null, scheduledDate:null, createdAt:new Date().toISOString()}]);
+    }, []);
+
+    const handlePlanify = useCallback((taskId, date, slot) => {
+      setTasks(prev => prev.map(t => t.id===taskId ? {...t, scheduledDate:date, slot:slot||t.slot} : t));
+    }, []);
+
+    const handleStartTimer = useCallback((task) => {
+      setTimer({ taskId:task.id, taskTitle:task.title, remaining:task.duration*60, total:task.duration*60, paused:false });
+    }, []);
+
+    const handleAddCustomCat    = useCallback((cat) => setCustomCats(p=>[...p,cat]), []);
+    const handleDeleteCustomCat = useCallback((id) => {
+      setCustomCats(p=>p.filter(c=>c.id!==id));
+      setTasks(p=>p.map(t=>({...t,categories:(t.categories||[]).filter(c=>c!==id)})));
+    }, []);
+
+    const openAdd = (slot=null, date=null) => { setDefSlot(slot); setDefDate(date); setEditTask(null); setPrefill(''); setShowForm(true); };
+
+    const handleVoiceFab = () => {
+      if (voiceOn) { voiceStop(); return; }
+      const ok = voiceStart(text => { setPrefill(text); setDefSlot('Flexible'); setDefDate(null); setEditTask(null); setShowForm(true); });
+      if (!ok) alert("Reconnaissance vocale non disponible.\nEssaie Chrome desktop ou Android Chrome.");
+    };
+
+    const handleImport = ({tasks:t,streak:s,history:h}) => {
+      setTasks(migrateTasks(t)); save(KEYS.tasks,t);
+      if(s){setStreak(s);save(KEYS.streak,s);}
+      if(h){setHistory(h);save(KEYS.history,h);}
+      alert('✅ Données importées !');
+    };
+
+    return (
+      <div style={{paddingTop: timer ? 56 : 0}}>
+        {timer && (
+          <TimerBanner timer={timer}
+            onPause={() => setTimer(p=>({...p,paused:!p.paused}))}
+            onFinish={() => { handleToggle(timer.taskId); setTimer(null); }}
+            onCancel={() => setTimer(null)}
+          />
+        )}
+
+        {voiceOn && (
+          <div className="listen-overlay">
+            <div className="listen-ring">🎙️</div>
+            <div className="listen-text">J'écoute…</div>
+            <div className="listen-hint">Dis le titre de ta tâche</div>
+            <button className="listen-cancel" onClick={voiceStop}>Annuler</button>
+          </div>
+        )}
+
+        <div className="header">
+          <div className="header-row">
+            <div>
+              <div className="day-name">{getDayName()}</div>
+              <div className="date-sub">{getDateStr()}</div>
+            </div>
+            <div className="streak-badge">
+              <div className="streak-num">{streak.count}</div>
+              <div className="streak-label">🔥 série</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="tabs">
+          {[{id:'day',label:"Aujourd'hui"},{id:'backlog',label:'À faire'},{id:'stats',label:'Stats'}].map(t=>(
+            <button key={t.id} className={`tab ${tab===t.id?'active':''}`} onClick={()=>setTab(t.id)}>{t.label}</button>
+          ))}
+        </div>
+
+        {tab==='day'     && <DayView tasks={tasks} allCats={allCats} onToggle={handleToggle} onMenu={setCtxTask} onAddToSlot={s=>openAdd(s,todayKey())} />}
+        {tab==='backlog' && <BacklogView tasks={tasks} allCats={allCats} onToggle={handleToggle} onMenu={setCtxTask} />}
+        {tab==='stats'   && <StatsView tasks={tasks} streak={streak} history={history} onImport={handleImport} />}
+
+        <div className="fab-area">
+          {voiceOk && (
+            <button className={`fab-voice ${voiceOn?'listening':''}`} onClick={handleVoiceFab}>
+              {voiceOn?'🎙️':'🎤'}
+              <span className="fab-voice-label">Parler</span>
+            </button>
+          )}
+          <button className="fab" onClick={()=>openAdd()}>+</button>
+        </div>
+
+        {ctxTask && (
+          <ContextMenu task={ctxTask}
+            onClose={() => setCtxTask(null)}
+            onPlanify={() => setPlanTask(ctxTask)}
+            onEdit={() => { setEditTask(ctxTask); setShowForm(true); }}
+            onDuplicate={() => handleDuplicate(ctxTask)}
+            onStartTimer={() => handleStartTimer(ctxTask)}
+            onDelete={() => handleDelete(ctxTask.id)}
+          />
+        )}
+
+        {planTask && (
+          <PlanifySheet task={planTask}
+            onClose={() => setPlanTask(null)}
+            onPlanify={(date, slot) => { handlePlanify(planTask.id, date, slot); setPlanTask(null); }}
+          />
+        )}
+
+        {showForm && (
+          <TaskFormSheet
+            initial={editTask ? {...editTask, prefillTitle: prefill||undefined} : (prefill ? {title:prefill} : null)}
+            onClose={() => { setShowForm(false); setEditTask(null); setPrefill(''); }}
+            onSave={handleSaveTask}
+            allCats={allCats}
+            customCatIds={customCatIds}
+            onAddCustomCat={handleAddCustomCat}
+            onDeleteCustomCat={handleDeleteCustomCat}
+            defaultSlot={defSlot}
+            defaultDate={defDate}
+          />
+        )}
+      </div>
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
