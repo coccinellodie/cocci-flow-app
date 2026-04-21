@@ -555,7 +555,7 @@
 
   // ── PRIO SECTION (collapsible) ────────────────────
   function PrioSection({ priority, tasks, allCats, onToggle, onMenu }) {
-    const [open, setOpen] = useState(true);
+    const [open, setOpen] = useState(false);
     if (!tasks.length) return null;
     return (
       <div>
@@ -577,7 +577,7 @@
   // ── BACKLOG VIEW ───────────────────────────────────
   function BacklogView({ tasks, allCats, onToggle, onMenu }) {
     const [catFilter,    setCatFilter]    = useState(null);
-    const [openPending,  setOpenPending]  = useState(false);
+    const [openPending,  setOpenPending]  = useState(true);
     const [openDone,     setOpenDone]     = useState(false);
 
     // Toutes les tâches non faites, y compris celles planifiées
