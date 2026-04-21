@@ -54,7 +54,24 @@
     .cal-nav { display: flex; gap: 8px; align-items: center; }
     .cal-nav-btn { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border); background: var(--card); color: var(--text); font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1; transition: all 0.15s; -webkit-tap-highlight-color: transparent; }
     .cal-nav-btn:active { background: var(--soft); }
+    .cal-dots-btn { background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer; padding: 4px 8px; letter-spacing: 2px; line-height: 1; -webkit-tap-highlight-color: transparent; transition: color 0.15s; }
+    .cal-dots-btn:hover { color: var(--text); }
     .week-strip { display: flex; justify-content: space-between; padding: 0 24px 4px; }
+
+    /* MONTH CALENDAR SHEET */
+    .month-sheet { background: var(--bg); width: 100%; max-width: 430px; margin: 0 auto; border-radius: 24px 24px 0 0; padding: 20px 20px 44px; animation: slideUp 0.28s cubic-bezier(0.34,1.36,0.64,1); max-height: 88vh; overflow-y: auto; }
+    .month-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+    .month-nav-title { font-family: 'Cormorant Garamond', serif; font-size: 26px; color: var(--green-dk); font-weight: 400; }
+    .month-grid-wrap { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+    .month-dow { font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); text-align: center; padding: 4px 0 10px; }
+    .month-cell-wrap { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 2px 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    .month-cell { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 14px; font-weight: 400; color: var(--text); transition: all 0.15s; }
+    .month-cell.other-month { color: var(--muted); opacity: 0.35; }
+    .month-cell.is-today { color: var(--rose-dk); font-weight: 600; border: 1.5px solid var(--rose); }
+    .month-cell.is-selected { background: var(--green-dk); color: white; border-color: transparent; font-weight: 500; }
+    .month-cell.is-today.is-selected { background: var(--rose-dk); }
+    .month-cell-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--rose); flex-shrink: 0; }
+    .month-cell-dot.selected-dot { background: rgba(255,255,255,0.6); }
     .day-pill { display: flex; flex-direction: column; align-items: center; gap: 5px; cursor: pointer; padding: 4px 2px; -webkit-tap-highlight-color: transparent; min-width: 38px; }
     .day-pill-letter { font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
     .day-pill-num { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 400; color: var(--text); transition: all 0.18s; }
@@ -342,20 +359,90 @@
     );
   }
 
-  // ── CALENDAR STRIP ─────────────────────────────────
-  const MON_FR_UP = ['JAN.','FÉV.','MAR.','AVR.','MAI','JUIN','JUIL.','AOÛT','SEP.','OCT.','NOV.','DÉC.'];
-  const DAY_LETTERS = ['D','L','M','M','J','V','S'];
-  const DAY_LETTERS_MON = ['L','M','M','J','V','S','D']; // lundi en premier
+  // ── CALENDAR STRIP + MONTH VIEW ────────────────────
+  const MON_FR_UP   = ['JAN.','FÉV.','MAR.','AVR.','MAI','JUIN','JUIL.','AOÛT','SEP.','OCT.','NOV.','DÉC.'];
+  const MON_FR_FULL = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  const DAY_LETTERS_MON = ['L','M','M','J','V','S','D'];
+
+  function getMonthGrid(year, month) {
+    const firstDay = new Date(year, month, 1);
+    const lastDay  = new Date(year, month + 1, 0);
+    let startDow = firstDay.getDay(); // 0=dim
+    startDow = startDow === 0 ? 6 : startDow - 1; // lundi=0
+    const cells = [];
+    for (let i = startDow - 1; i >= 0; i--) {
+      const d = new Date(year, month, -i); cells.push({ d, other: true });
+    }
+    for (let d = 1; d <= lastDay.getDate(); d++) {
+      cells.push({ d: new Date(year, month, d), other: false });
+    }
+    const rem = 7 - (cells.length % 7);
+    if (rem < 7) for (let d = 1; d <= rem; d++) cells.push({ d: new Date(year, month+1, d), other: true });
+    return cells;
+  }
+
+  function MonthCalendarSheet({ selectedDate, onSelectDate, onClose, tasks }) {
+    const selD = new Date(selectedDate + 'T12:00:00');
+    const [viewYear,  setViewYear]  = useState(selD.getFullYear());
+    const [viewMonth, setViewMonth] = useState(selD.getMonth());
+    const today = todayKey();
+
+    const prevMonth = () => {
+      if (viewMonth === 0) { setViewMonth(11); setViewYear(y=>y-1); }
+      else setViewMonth(m=>m-1);
+    };
+    const nextMonth = () => {
+      if (viewMonth === 11) { setViewMonth(0); setViewYear(y=>y+1); }
+      else setViewMonth(m=>m+1);
+    };
+
+    const cells = getMonthGrid(viewYear, viewMonth);
+
+    const handleSelect = (cell) => {
+      const key = cell.d.toISOString().split('T')[0];
+      onSelectDate(key);
+      onClose();
+    };
+
+    return (
+      <div className="sheet-overlay" onClick={e => e.target===e.currentTarget && onClose()}>
+        <div className="month-sheet">
+          <div className="sheet-handle"/>
+          <div className="month-nav">
+            <button className="cal-nav-btn" onClick={prevMonth}>‹</button>
+            <div className="month-nav-title">{MON_FR_FULL[viewMonth]} {viewYear}</div>
+            <button className="cal-nav-btn" onClick={nextMonth}>›</button>
+          </div>
+          <div className="month-grid-wrap">
+            {DAY_LETTERS_MON.map((l,i) => <div key={i} className="month-dow">{l}</div>)}
+            {cells.map((cell, i) => {
+              const key = cell.d.toISOString().split('T')[0];
+              const isSel = key === selectedDate;
+              const isTod = key === today;
+              const hasTasks = tasks.some(t => t.scheduledDate === key && !t.done);
+              return (
+                <div key={i} className="month-cell-wrap" onClick={() => handleSelect(cell)}>
+                  <div className={`month-cell ${cell.other?'other-month':''} ${isTod&&!isSel?'is-today':''} ${isSel?(isTod?'is-today is-selected':'is-selected'):''}`}>
+                    {cell.d.getDate()}
+                  </div>
+                  {hasTasks ? <div className={`month-cell-dot ${isSel?'selected-dot':''}`}/> : <div style={{width:4,height:4}}/>}
+                </div>
+              );
+            })}
+          </div>
+          <button className="btn-secondary" style={{marginTop:16}} onClick={onClose}>Fermer</button>
+        </div>
+      </div>
+    );
+  }
 
   function CalendarStrip({ selectedDate, onSelectDate, tasks }) {
-    const [weekOffset, setWeekOffset] = useState(() => {
-      // Start on the week containing selectedDate
-      return 0;
-    });
+    const [weekOffset,    setWeekOffset]    = useState(0);
+    const [showMonthView, setShowMonthView] = useState(false);
 
     const getWeekStart = (offset) => {
       const d = new Date();
-      const dow = d.getDay(); // 0=dim
+      const dow = d.getDay();
       const toMon = dow === 0 ? -6 : 1 - dow;
       d.setDate(d.getDate() + toMon + offset * 7);
       d.setHours(0,0,0,0);
@@ -367,45 +454,48 @@
       const d = new Date(weekStart);
       d.setDate(weekStart.getDate() + i);
       const key = d.toISOString().split('T')[0];
-      return {
-        key,
-        letter: DAY_LETTERS_MON[i],
-        num: d.getDate(),
-        isToday: key === todayKey(),
-        hasTasks: tasks.some(t => t.scheduledDate === key && !t.done),
-      };
+      return { key, letter: DAY_LETTERS_MON[i], num: d.getDate(), isToday: key === todayKey(), hasTasks: tasks.some(t => t.scheduledDate === key && !t.done) };
     });
 
     const selD = new Date(selectedDate + 'T12:00:00');
     const monthLabel = `${MON_FR_UP[selD.getMonth()]} ${selD.getFullYear()}`;
 
-    const goTodayWeek = () => setWeekOffset(0);
-
     return (
-      <div>
-        <div className="cal-header">
-          <div className="cal-month-row">
-            <div>
-              <div className="cal-month-label">{monthLabel}</div>
-              <div className="cal-day-big">{DAY_FR[selD.getDay()]}</div>
-            </div>
-            <div className="cal-nav">
-              <button className="cal-nav-btn" onClick={() => setWeekOffset(o=>o-1)}>‹</button>
-              {weekOffset !== 0 && <button className="cal-nav-btn" style={{fontSize:11,width:'auto',padding:'0 10px',borderRadius:10}} onClick={goTodayWeek}>auj.</button>}
-              <button className="cal-nav-btn" onClick={() => setWeekOffset(o=>o+1)}>›</button>
+      <>
+        <div>
+          <div className="cal-header">
+            <div className="cal-month-row">
+              <div>
+                <div className="cal-month-label">{monthLabel}</div>
+                <div className="cal-day-big">{DAY_FR[selD.getDay()]}</div>
+              </div>
+              <div className="cal-nav">
+                <button className="cal-dots-btn" onClick={() => setShowMonthView(true)} title="Vue mois">···</button>
+                <button className="cal-nav-btn" onClick={() => setWeekOffset(o=>o-1)}>‹</button>
+                {weekOffset !== 0 && <button className="cal-nav-btn" style={{fontSize:11,width:'auto',padding:'0 10px',borderRadius:10}} onClick={() => setWeekOffset(0)}>auj.</button>}
+                <button className="cal-nav-btn" onClick={() => setWeekOffset(o=>o+1)}>›</button>
+              </div>
             </div>
           </div>
+          <div className="week-strip">
+            {days.map(d => (
+              <div key={d.key} className="day-pill" onClick={() => onSelectDate(d.key)}>
+                <span className="day-pill-letter">{d.letter}</span>
+                <span className={`day-pill-num ${d.isToday&&d.key!==selectedDate?'is-today':''} ${d.key===selectedDate?(d.isToday?'is-today is-selected':'is-selected'):''}`}>{d.num}</span>
+                {d.hasTasks && d.key!==selectedDate ? <div className="day-pill-dot"/> : <div className="day-pill-dot-placeholder"/>}
+              </div>
+            ))}
+          </div>
         </div>
-        <div className="week-strip">
-          {days.map(d => (
-            <div key={d.key} className="day-pill" onClick={() => onSelectDate(d.key)}>
-              <span className="day-pill-letter">{d.letter}</span>
-              <span className={`day-pill-num ${d.isToday&&d.key!==selectedDate?'is-today':''} ${d.key===selectedDate?(d.isToday?'is-today is-selected':'is-selected'):''}`}>{d.num}</span>
-              {d.hasTasks && d.key!==selectedDate ? <div className="day-pill-dot"/> : <div className="day-pill-dot-placeholder"/>}
-            </div>
-          ))}
-        </div>
-      </div>
+        {showMonthView && (
+          <MonthCalendarSheet
+            selectedDate={selectedDate}
+            onSelectDate={onSelectDate}
+            onClose={() => setShowMonthView(false)}
+            tasks={tasks}
+          />
+        )}
+      </>
     );
   }
 
