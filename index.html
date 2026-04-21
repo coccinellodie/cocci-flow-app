@@ -3,6 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Cocci Flow">
+  <meta name="theme-color" content="#FAF7F2">
   <title>Cocci Flow</title>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
@@ -248,9 +252,10 @@
   ];
 
   // ── UTILS ──────────────────────────────────────────
-  const todayKey = () => new Date().toISOString().split('T')[0];
-  const ydayKey  = () => { const d=new Date(); d.setDate(d.getDate()-1); return d.toISOString().split('T')[0]; };
-  const addDays  = (n) => { const d=new Date(); d.setDate(d.getDate()+n); return d.toISOString().split('T')[0]; };
+  const localKey = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const todayKey = () => localKey(new Date());
+  const ydayKey  = () => { const d=new Date(); d.setDate(d.getDate()-1); return localKey(d); };
+  const addDays  = (n) => { const d=new Date(); d.setDate(d.getDate()+n); return localKey(d); };
   const fmtDur   = (m) => m<60 ? `${m} min` : (m%60===0 ? `${m/60}h` : `${Math.floor(m/60)}h${m%60}`);
   const fmtSec   = (s) => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
   const DAY_FR   = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
@@ -263,7 +268,7 @@
     const opts = [{ key: todayKey(), label: "Aujourd'hui" }];
     for (let i=1; i<=5; i++) {
       const d = new Date(); d.setDate(d.getDate()+i);
-      const k = d.toISOString().split('T')[0];
+      const k = localKey(d);
       const lbl = i===1 ? 'Demain' : DAY_FR[d.getDay()];
       opts.push({ key: k, label: lbl });
     }
@@ -399,7 +404,7 @@
     const cells = getMonthGrid(viewYear, viewMonth);
 
     const handleSelect = (cell) => {
-      const key = cell.d.toISOString().split('T')[0];
+      const key = localKey(cell.d);
       onSelectDate(key);
       onClose();
     };
@@ -416,7 +421,7 @@
           <div className="month-grid-wrap">
             {DAY_LETTERS_MON.map((l,i) => <div key={i} className="month-dow">{l}</div>)}
             {cells.map((cell, i) => {
-              const key = cell.d.toISOString().split('T')[0];
+              const key = localKey(cell.d);
               const isSel = key === selectedDate;
               const isTod = key === today;
               const hasTasks = tasks.some(t => t.scheduledDate === key && !t.done);
@@ -453,7 +458,7 @@
     const days = Array.from({length:7}, (_, i) => {
       const d = new Date(weekStart);
       d.setDate(weekStart.getDate() + i);
-      const key = d.toISOString().split('T')[0];
+      const key = localKey(d);
       return { key, letter: DAY_LETTERS_MON[i], num: d.getDate(), isToday: key === todayKey(), hasTasks: tasks.some(t => t.scheduledDate === key && !t.done) };
     });
 
@@ -523,10 +528,32 @@
     );
   }
 
+  // ── PRIO SECTION (collapsible) ────────────────────
+  function PrioSection({ priority, tasks, allCats, onToggle, onMenu }) {
+    const [open, setOpen] = useState(true);
+    if (!tasks.length) return null;
+    return (
+      <div>
+        <div
+          className="prio-header"
+          onClick={() => setOpen(o => !o)}
+          style={{cursor:'pointer', userSelect:'none', WebkitTapHighlightColor:'transparent'}}
+        >
+          <div className="prio-dot" style={{background:PRIO_COLORS[priority]}}/>
+          <span className="prio-name">{priority}</span>
+          <span className="prio-count">{tasks.length}</span>
+          <span style={{color:'var(--muted)',fontSize:13,marginLeft:'auto',transition:'transform 0.2s',display:'inline-block',transform:open?'rotate(180deg)':'none'}}>⌄</span>
+        </div>
+        {open && tasks.map(t => <TaskCard key={t.id} task={t} allCats={allCats} onToggle={onToggle} onMenu={onMenu} showDate />)}
+      </div>
+    );
+  }
+
   // ── BACKLOG VIEW ───────────────────────────────────
   function BacklogView({ tasks, allCats, onToggle, onMenu }) {
-    const [catFilter, setCatFilter]   = useState(null);
-    const [showDone,  setShowDone]    = useState(false);
+    const [catFilter,    setCatFilter]    = useState(null);
+    const [openPending,  setOpenPending]  = useState(true);
+    const [openDone,     setOpenDone]     = useState(false);
 
     // Toutes les tâches non faites, y compris celles planifiées
     const pending  = tasks.filter(tk => !tk.done);
@@ -548,43 +575,43 @@
           </div>
         )}
 
-        {/* Tâches par priorité */}
+        {/* Section "À faire" dépliable */}
+        {pending.length > 0 && (
+          <div>
+            <div
+              onClick={() => setOpenPending(o => !o)}
+              style={{display:'flex',alignItems:'center',gap:8,padding:'14px 0 6px',cursor:'pointer',userSelect:'none',WebkitTapHighlightColor:'transparent'}}
+            >
+              <span style={{fontSize:11,fontWeight:500,textTransform:'uppercase',letterSpacing:'0.12em',color:'var(--text)'}}>À faire</span>
+              <span style={{fontSize:12,color:'var(--muted)',background:'var(--soft)',borderRadius:10,padding:'1px 7px'}}>{pending.length}</span>
+              <span style={{color:'var(--muted)',fontSize:13,marginLeft:'auto',transition:'transform 0.2s',display:'inline-block',transform:openPending?'rotate(180deg)':'none'}}>⌄</span>
+            </div>
+            {openPending && PRIORITIES.map(p => {
+              const pts = applyFilter(pending).filter(t => t.priority === p);
+              return <PrioSection key={p} priority={p} tasks={pts} allCats={allCats} onToggle={onToggle} onMenu={onMenu} />;
+            })}
+          </div>
+        )}
+
         {pending.length === 0 && (
           <div className="empty" style={{paddingTop:32}}>
             <div className="empty-icon">🌿</div>
             <div className="empty-text">Tout est fait !<br/>Tu peux souffler.</div>
           </div>
         )}
-        {PRIORITIES.map(p => {
-          const pts = applyFilter(pending).filter(t => t.priority === p);
-          if (!pts.length) return null;
-          return (
-            <div key={p}>
-              <div className="prio-header">
-                <div className="prio-dot" style={{background:PRIO_COLORS[p]}}/>
-                <span className="prio-name">{p}</span>
-                <span className="prio-count">{pts.length}</span>
-              </div>
-              {pts.map(t => <TaskCard key={t.id} task={t} allCats={allCats} onToggle={onToggle} onMenu={onMenu} showDate />)}
-            </div>
-          );
-        })}
 
-        {/* Section Fait */}
+        {/* Section Fait dépliable */}
         {done.length > 0 && (
-          <div style={{marginTop:24}}>
+          <div style={{marginTop:12}}>
             <div
-              onClick={() => setShowDone(o=>!o)}
+              onClick={() => setOpenDone(o => !o)}
               style={{display:'flex',alignItems:'center',gap:8,padding:'10px 0',cursor:'pointer',userSelect:'none',WebkitTapHighlightColor:'transparent'}}
             >
-              <span style={{fontSize:11,fontWeight:500,textTransform:'uppercase',letterSpacing:'0.12em',color:'var(--muted)'}}>Fait ({done.length})</span>
-              <span style={{color:'var(--muted)',fontSize:13,marginLeft:'auto',transition:'transform 0.2s',display:'inline-block',transform:showDone?'rotate(180deg)':'none'}}>⌄</span>
+              <span style={{fontSize:11,fontWeight:500,textTransform:'uppercase',letterSpacing:'0.12em',color:'var(--muted)'}}>Fait</span>
+              <span style={{fontSize:12,color:'var(--muted)',background:'var(--soft)',borderRadius:10,padding:'1px 7px'}}>{done.length}</span>
+              <span style={{color:'var(--muted)',fontSize:13,marginLeft:'auto',transition:'transform 0.2s',display:'inline-block',transform:openDone?'rotate(180deg)':'none'}}>⌄</span>
             </div>
-            {showDone && (
-              <div>
-                {applyFilter(done).map(t => <TaskCard key={t.id} task={t} allCats={allCats} onToggle={onToggle} onMenu={onMenu} showDate />)}
-              </div>
-            )}
+            {openDone && applyFilter(done).map(t => <TaskCard key={t.id} task={t} allCats={allCats} onToggle={onToggle} onMenu={onMenu} showDate />)}
           </div>
         )}
       </div>
@@ -597,7 +624,7 @@
     const [selSlot, setSelSlot] = useState(task.slot || 'Matin');
 
     const t = todayKey();
-    const maxDate = (() => { const d=new Date(); d.setMonth(d.getMonth()+6); return d.toISOString().split('T')[0]; })();
+    const maxDate = (() => { const d=new Date(); d.setMonth(d.getMonth()+6); return localKey(d); })();
     const quickDates = [
       { key: t, label: "Aujourd'hui" },
       { key: addDays(1), label: 'Demain' },
@@ -722,10 +749,14 @@
 
     const handleSave = () => {
       if (!title.trim()) return;
+      stop(); // arrêter le micro s'il est encore actif
       const base = isEdit ? { ...initial } : { id: Date.now().toString(36)+Math.random().toString(36).slice(2), done: false, doneDate: null, createdAt: new Date().toISOString(), scheduledDate: defaultDate || null };
       onSave({ ...base, title: title.trim(), priority, slot, duration, categories, notes: notes.trim() });
       onClose();
     };
+
+    // Stopper le micro si le formulaire se ferme sans sauvegarder
+    useEffect(() => () => stop(), []);
 
     return (
       <div className="sheet-overlay" onClick={e => e.target===e.currentTarget && onClose()}>
@@ -931,7 +962,17 @@
           </div>
         )}
 
-        <CalendarStrip selectedDate={selectedDate} onSelectDate={setSelectedDate} tasks={tasks} />
+        {tab==='day' && <CalendarStrip selectedDate={selectedDate} onSelectDate={setSelectedDate} tasks={tasks} />}
+        {tab==='backlog' && (
+          <div className="header">
+            <div className="header-row">
+              <div>
+                <div className="day-name">Mes tâches</div>
+                <div className="date-sub">{getDayName()} {getDateStr()}</div>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="tabs">
           {[{id:'day',label:'Planning'},{id:'backlog',label:'À faire'}].map(t=>(
