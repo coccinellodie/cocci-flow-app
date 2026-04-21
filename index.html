@@ -577,7 +577,7 @@
   // ── BACKLOG VIEW ───────────────────────────────────
   function BacklogView({ tasks, allCats, onToggle, onMenu }) {
     const [catFilter,    setCatFilter]    = useState(null);
-    const [openPending,  setOpenPending]  = useState(true);
+    const [openPending,  setOpenPending]  = useState(false);
     const [openDone,     setOpenDone]     = useState(false);
 
     // Toutes les tâches non faites, y compris celles planifiées
@@ -754,6 +754,15 @@
     const [showNewCat, setShowNewCat] = useState(false);
     const [newIcon,    setNewIcon]    = useState('');
     const [newLabel,   setNewLabel]   = useState('');
+    const [schedDate,  setSchedDate]  = useState(initial?.scheduledDate || defaultDate || null);
+    const [showSched,  setShowSched]  = useState(!!(initial?.scheduledDate || defaultDate));
+    const maxSchedDate = (() => { const d=new Date(); d.setMonth(d.getMonth()+6); return localKey(d); })();
+    const QUICK_DATES = [
+      { key: todayKey(),  label: "Aujourd'hui" },
+      { key: addDays(1),  label: 'Demain' },
+      { key: addDays(3),  label: 'Dans 3 j.' },
+      { key: addDays(7),  label: 'Dans 1 sem.' },
+    ];
     const { listening, start, stop }  = useVoice();
 
     const toggleCat = (id) => setCategories(p => p.includes(id) ? p.filter(c=>c!==id) : [...p,id]);
@@ -775,8 +784,8 @@
     const handleSave = () => {
       if (!title.trim()) return;
       stop(); // arrêter le micro s'il est encore actif
-      const base = isEdit ? { ...initial } : { id: Date.now().toString(36)+Math.random().toString(36).slice(2), done: false, doneDate: null, createdAt: new Date().toISOString(), scheduledDate: defaultDate || null };
-      onSave({ ...base, title: title.trim(), priority, slot, duration, categories, notes: notes.trim() });
+      const base = isEdit ? { ...initial } : { id: Date.now().toString(36)+Math.random().toString(36).slice(2), done: false, doneDate: null, createdAt: new Date().toISOString(), scheduledDate: showSched ? (schedDate || defaultDate || null) : null };
+      onSave({ ...base, title: title.trim(), priority, slot, duration, categories, notes: notes.trim(), scheduledDate: showSched ? (schedDate || defaultDate || null) : (isEdit ? initial.scheduledDate : null) });
       onClose();
     };
 
@@ -852,6 +861,35 @@
           <div className="form-group">
             <label className="form-label">Notes (optionnel)</label>
             <textarea className="form-input form-textarea" placeholder="Quelques détails…" value={notes} onChange={e=>setNotes(e.target.value)}/>
+          </div>
+          <div className="form-group">
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+              <label className="form-label" style={{marginBottom:0}}>Planifier maintenant ?</label>
+              <button
+                type="button"
+                onClick={() => { setShowSched(o=>!o); if(showSched) setSchedDate(null); }}
+                style={{fontSize:12,padding:'4px 12px',borderRadius:20,border:'1px solid var(--border)',background:showSched?'var(--green-dk)':'var(--soft)',color:showSched?'white':'var(--muted)',cursor:'pointer',transition:'all 0.2s'}}
+              >{showSched ? '✓ Oui' : 'Non'}</button>
+            </div>
+            {showSched && (
+              <div style={{marginTop:10}}>
+                <div className="chips-row" style={{flexWrap:'wrap',marginBottom:8}}>
+                  {QUICK_DATES.map(d=>(
+                    <button key={d.key} className={`chip-sel ${schedDate===d.key?'sel':''}`} onClick={()=>setSchedDate(d.key)}>{d.label}</button>
+                  ))}
+                </div>
+                <input
+                  type="date"
+                  className="form-input"
+                  value={schedDate||''}
+                  min={todayKey()}
+                  max={maxSchedDate}
+                  onChange={e=>setSchedDate(e.target.value||null)}
+                  style={{fontSize:14}}
+                />
+                {schedDate && <div style={{fontSize:12,color:'var(--green-dk)',marginTop:6,textAlign:'center'}}>📅 {fmtDateLabel(schedDate)}</div>}
+              </div>
+            )}
           </div>
           <button className="btn-main" onClick={handleSave} disabled={!title.trim()}>{isEdit ? 'Enregistrer' : 'Ajouter la tâche'}</button>
           <button className="btn-secondary" onClick={onClose}>Annuler</button>
