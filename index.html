@@ -48,10 +48,11 @@
     .timer-done { font-size: 11px; opacity: 0.7; text-align: center; }
     .timer-btn { background: rgba(255,255,255,0.2); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 
-    /* TABS */
-    .tabs { display: flex; padding: 0 24px; border-bottom: 1px solid var(--border); background: var(--bg); position: sticky; top: 0; z-index: 20; }
-    .tab { flex: 1; padding: 13px 6px; border: none; background: none; font-family: 'Cormorant Garamond', serif; font-size: 17px; font-weight: 400; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color 0.2s, border-color 0.2s; }
-    .tab.active { color: var(--rose-dk); border-bottom-color: var(--rose); font-weight: 500; }
+    /* TABS (bottom nav) */
+    .tabs { display: flex; padding: 0; border-top: 1px solid var(--border); border-bottom: none; background: var(--bg); position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 430px; z-index: 20; padding-bottom: env(safe-area-inset-bottom, 0px); }
+    .tab { flex: 1; padding: 10px 6px 12px; border: none; background: none; font-family: 'Cormorant Garamond', serif; font-size: 17px; font-weight: 400; color: var(--muted); cursor: pointer; border-top: 2px solid transparent; margin-top: -1px; transition: color 0.2s, border-color 0.2s; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    .tab.active { color: var(--rose-dk); border-top-color: var(--rose); font-weight: 500; }
+    .tab-icon { font-size: 18px; line-height: 1; }
 
     /* CALENDAR STRIP */
     .cal-header { padding: 52px 24px 0; background: linear-gradient(180deg, rgba(182,154,148,0.14) 0%, transparent 100%); }
@@ -89,7 +90,7 @@
     .day-pill-dot-placeholder { width: 4px; height: 4px; }
 
     /* CONTENT */
-    .content { padding: 18px 24px 120px; }
+    .content { padding: 18px 24px 140px; }
 
     /* SLOT SECTION */
     .slot-section { margin-bottom: 24px; }
@@ -138,7 +139,7 @@
     .empty-text { font-size: 14px; line-height: 1.6; }
 
     /* FAB AREA */
-    .fab-area { position: fixed; bottom: 28px; right: max(calc(50vw - 215px + 24px), 24px); display: flex; gap: 12px; align-items: center; z-index: 50; }
+    .fab-area { position: fixed; bottom: calc(72px + env(safe-area-inset-bottom, 0px)); right: max(calc(50vw - 215px + 24px), 24px); display: flex; gap: 12px; align-items: center; z-index: 50; }
     .fab-voice { width: 48px; height: 48px; border-radius: 50%; background: var(--soft-rose); border: 1.5px solid rgba(182,154,148,0.4); font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 3px 12px rgba(182,154,148,0.3); transition: all 0.2s; position: relative; -webkit-tap-highlight-color: transparent; }
     .fab-voice.listening { animation: pulse 1s ease-in-out infinite; border-color: var(--rose); }
     @keyframes pulse { 0%,100%{box-shadow:0 3px 12px rgba(182,154,148,0.3)} 50%{box-shadow:0 3px 22px rgba(182,154,148,0.6)} }
@@ -218,6 +219,17 @@
     .prio-name { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); }
     .prio-count { font-size: 11px; color: var(--muted); margin-left: auto; }
 
+
+    /* DONE VIEW */
+    .done-hero { text-align: center; padding: 32px 24px 20px; }
+    .done-counter-ring { width: 110px; height: 110px; border-radius: 50%; background: linear-gradient(135deg, rgba(139,162,136,0.18) 0%, rgba(206,163,155,0.18) 100%); border: 2px solid rgba(139,162,136,0.3); display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 0 auto 14px; }
+    .done-counter-num { font-family: 'Cormorant Garamond', serif; font-size: 52px; font-weight: 400; color: var(--green-dk); line-height: 1; }
+    .done-counter-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin-top: 2px; }
+    .done-hero-message { font-family: 'Cormorant Garamond', serif; font-size: 19px; color: var(--green-dk); font-style: italic; }
+    .done-day-group { margin-bottom: 20px; }
+    .done-day-header { display: flex; align-items: center; gap: 8px; padding: 0 0 8px; border-bottom: 1px solid var(--border); margin-bottom: 8px; }
+    .done-day-label { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); }
+    .done-day-count { font-size: 11px; color: var(--muted); background: var(--soft); border-radius: 10px; padding: 1px 7px; }
 
     ::-webkit-scrollbar { width: 3px; }
     ::-webkit-scrollbar-track { background: transparent; }
@@ -578,13 +590,11 @@
 
   // ── BACKLOG VIEW ───────────────────────────────────
   function BacklogView({ tasks, allCats, onToggle, onMenu }) {
-    const [catFilter,    setCatFilter]    = useState(null);
-    const [openPending,  setOpenPending]  = useState(true);
-    const [openDone,     setOpenDone]     = useState(false);
+    const [catFilter,   setCatFilter]   = useState(null);
+    const [openPending, setOpenPending] = useState(true);
 
     // Toutes les tâches non faites, y compris celles planifiées
     const pending  = tasks.filter(tk => !tk.done);
-    const done     = tasks.filter(tk => tk.done).sort((a,b) => (b.doneDate||'').localeCompare(a.doneDate||''));
     const usedCats = allCats.filter(c => pending.some(t => (t.categories||[]).includes(c.id)));
 
     const applyFilter = (list) => catFilter ? list.filter(t => (t.categories||[]).includes(catFilter)) : list;
@@ -623,24 +633,77 @@
         {pending.length === 0 && (
           <div className="empty" style={{paddingTop:32}}>
             <div className="empty-icon">🌿</div>
-            <div className="empty-text">Tout est fait !<br/>Tu peux souffler.</div>
+            <div className="empty-text">Tout est fait !<br/>Va dans "Fait" pour savourer ✓</div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── DONE VIEW ──────────────────────────────────────
+  function DoneView({ tasks, allCats, onToggle, onMenu }) {
+    const done = tasks.filter(tk => tk.done)
+      .sort((a, b) => (b.doneDate||'').localeCompare(a.doneDate||''));
+
+    const today = todayKey();
+    const yDay  = ydayKey();
+
+    const todayDone = done.filter(t => t.doneDate === today);
+    const total     = todayDone.length;
+
+    // Regrouper par date
+    const byDate = {};
+    done.forEach(t => {
+      const k = t.doneDate || 'unknown';
+      if (!byDate[k]) byDate[k] = [];
+      byDate[k].push(t);
+    });
+    const dates = Object.keys(byDate).sort((a,b) => b.localeCompare(a));
+
+    const dayLabel = (key) => {
+      if (key === today) return "Aujourd'hui";
+      if (key === yDay)  return 'Hier';
+      const d = new Date(key + 'T12:00:00');
+      return `${DAY_FR[d.getDay()]} ${d.getDate()} ${MON_FR[d.getMonth()]}`;
+    };
+
+    const heroMessage = () => {
+      if (total === 0) return 'La journée commence…';
+      if (total < 3)  return 'Bien lancée 🌱';
+      if (total < 6)  return 'Belle énergie ✨';
+      if (total < 10) return 'Tu carbures ! 🔥';
+      return 'Journée de guerrière 🏆';
+    };
+
+    return (
+      <div className="content" style={{paddingTop:0}}>
+        {/* Compteur héro */}
+        <div className="done-hero">
+          <div className="done-counter-ring">
+            <div className="done-counter-num">{total}</div>
+            <div className="done-counter-label">aujourd'hui</div>
+          </div>
+          <div className="done-hero-message">{heroMessage()}</div>
+        </div>
+
+        {done.length === 0 && (
+          <div className="empty" style={{paddingTop:0}}>
+            <div className="empty-text">Rien de fait encore.<br/>Coche ta première tâche 🌿</div>
           </div>
         )}
 
-        {/* Section Fait dépliable */}
-        {done.length > 0 && (
-          <div style={{marginTop:12}}>
-            <div
-              onClick={() => setOpenDone(o => !o)}
-              style={{display:'flex',alignItems:'center',gap:8,padding:'10px 0',cursor:'pointer',userSelect:'none',WebkitTapHighlightColor:'transparent'}}
-            >
-              <span style={{fontSize:11,fontWeight:500,textTransform:'uppercase',letterSpacing:'0.12em',color:'var(--muted)'}}>Fait</span>
-              <span style={{fontSize:12,color:'var(--muted)',background:'var(--soft)',borderRadius:10,padding:'1px 7px'}}>{done.length}</span>
-              <span style={{color:'var(--muted)',fontSize:13,marginLeft:'auto',transition:'transform 0.2s',display:'inline-block',transform:openDone?'rotate(180deg)':'none'}}>⌄</span>
+        {/* Liste par jour */}
+        {dates.map(dateKey => (
+          <div key={dateKey} className="done-day-group">
+            <div className="done-day-header">
+              <span className="done-day-label">{dayLabel(dateKey)}</span>
+              <span className="done-day-count">{byDate[dateKey].length}</span>
             </div>
-            {openDone && applyFilter(done).map(t => <TaskCard key={t.id} task={t} allCats={allCats} onToggle={onToggle} onMenu={onMenu} showDate />)}
+            {byDate[dateKey].map(t => (
+              <TaskCard key={t.id} task={t} allCats={allCats} onToggle={onToggle} onMenu={onMenu} />
+            ))}
           </div>
-        )}
+        ))}
       </div>
     );
   }
@@ -1077,11 +1140,11 @@
         )}
 
         {tab==='day' && <CalendarStrip selectedDate={selectedDate} onSelectDate={setSelectedDate} tasks={tasks} />}
-        {tab==='backlog' && (
+        {(tab==='backlog' || tab==='fait') && (
           <div className="header">
             <div className="header-row">
               <div>
-                <div className="day-name">Mes tâches</div>
+                <div className="day-name">{tab==='fait' ? 'Fait' : 'Mes tâches'}</div>
                 <div className="date-sub">{getDayName()} {getDateStr()}</div>
               </div>
               {syncing && (
@@ -1093,14 +1156,18 @@
           </div>
         )}
 
-        <div className="tabs">
-          {[{id:'day',label:'Planning'},{id:'backlog',label:'À faire'}].map(t=>(
-            <button key={t.id} className={`tab ${tab===t.id?'active':''}`} onClick={()=>setTab(t.id)}>{t.label}</button>
-          ))}
-        </div>
-
         {tab==='day'     && <DayView tasks={tasks} allCats={allCats} onToggle={handleToggle} onMenu={setCtxTask} onAddToSlot={s=>openAdd(s,selectedDate)} selectedDate={selectedDate} />}
         {tab==='backlog' && <BacklogView tasks={tasks} allCats={allCats} onToggle={handleToggle} onMenu={setCtxTask} />}
+        {tab==='fait'    && <DoneView tasks={tasks} allCats={allCats} onToggle={handleToggle} onMenu={setCtxTask} />}
+
+        <div className="tabs">
+          {[{id:'day',label:'Planning',icon:'📅'},{id:'backlog',label:'À faire',icon:'✦'},{id:'fait',label:'Fait',icon:'✓'}].map(t=>(
+            <button key={t.id} className={`tab ${tab===t.id?'active':''}`} onClick={()=>setTab(t.id)}>
+              <span className="tab-icon">{t.icon}</span>
+              {t.label}
+            </button>
+          ))}
+        </div>
 
         <div className="fab-area">
           {voiceOk && (
