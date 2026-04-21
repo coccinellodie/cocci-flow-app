@@ -105,7 +105,7 @@
     .task-card.done { opacity: 0.42; }
     .task-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; border-radius: 14px 0 0 14px; }
     .task-card.p-haute::before   { background: #B05C4B; }
-    .task-card.p-moyenne::before { background: #977A5C; }
+    .task-card.p-moyenne::before { background: #E8AFA8; }
     .task-card.p-basse::before   { background: #6B9980; }
     .task-check { width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid var(--border); background: none; cursor: pointer; flex-shrink: 0; margin-top: 2px; display: flex; align-items: center; justify-content: center; transition: all 0.2s; -webkit-tap-highlight-color: transparent; }
     .task-check:active { transform: scale(0.88); }
@@ -118,7 +118,7 @@
     .task-dur { font-size: 11px; color: var(--muted); }
     .task-chip { font-size: 10px; padding: 2px 8px; border-radius: 8px; font-weight: 500; white-space: nowrap; }
     .chip-haute   { background: rgba(176,92,75,0.13); color: #B05C4B; }
-    .chip-moyenne { background: rgba(151,122,92,0.13); color: #7A5C3A; }
+    .chip-moyenne { background: rgba(232,175,168,0.18); color: #B87870; }
     .chip-basse   { background: rgba(107,153,128,0.15); color: #4A7A62; }
     .chip-cat { font-size: 11px; padding: 2px 8px; border-radius: 8px; background: rgba(36,61,31,0.08); color: var(--green-dk); white-space: nowrap; }
     .chip-sched { font-size: 11px; padding: 2px 8px; border-radius: 8px; background: rgba(182,154,148,0.15); color: var(--rose-dk); white-space: nowrap; }
@@ -238,7 +238,7 @@
   ];
   const PRIORITIES  = ['Haute', 'Moyenne', 'Basse'];
   const DURATIONS   = [15, 30, 45, 60, 90, 120];
-  const PRIO_COLORS = { Haute: '#B05C4B', Moyenne: '#977A5C', Basse: '#6B9980' };
+  const PRIO_COLORS = { Haute: '#B05C4B', Moyenne: '#E8AFA8', Basse: '#6B9980' };
   const DEFAULT_CATS = [
     { id: 'cabinet',   icon: '🌿', label: 'Cabinet' },
     { id: 'clients',   icon: '💌', label: 'Clients' },
