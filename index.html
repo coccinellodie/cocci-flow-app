@@ -13,6 +13,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
   <style>
+    @keyframes spin { to { transform: rotate(360deg); } }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
       --brown:     #977A5C;
@@ -288,6 +289,30 @@
   const load = (k,def) => { try { return JSON.parse(localStorage.getItem(k)) ?? def; } catch { return def; } };
   const save = (k,v)   => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
   const KEYS = { tasks:'flow_v4', cats:'flow_custom_cats_v1' };
+
+  // ── NOTION SYNC ────────────────────────────────────────
+  // ← Coller ici l'URL du Worker Cloudflare après déploiement
+  const PROXY_URL = '';
+
+  const notionGet = () =>
+    fetch(PROXY_URL + '/tasks').then(r => r.json());
+
+  const notionCreate = (task) =>
+    fetch(PROXY_URL + '/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(task),
+    }).then(r => r.json());
+
+  const notionUpdate = (notionId, task) =>
+    fetch(`${PROXY_URL}/tasks/${notionId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(task),
+    }).then(r => r.json());
+
+  const notionDelete = (notionId) =>
+    fetch(`${PROXY_URL}/tasks/${notionId}`, { method: 'DELETE' });
 
   const migrateTasks = (tasks) => tasks.map(t => ({
     ...t,
@@ -866,6 +891,7 @@
     const [defDate,    setDefDate]    = useState(null);
     const [prefill,    setPrefill]    = useState('');
     const [timer,      setTimer]      = useState(null);
+    const [syncing,    setSyncing]    = useState(false);
     const timerRef = useRef(null);
     const { listening: voiceOn, supported: voiceOk, start: voiceStart, stop: voiceStop } = useVoice();
 
@@ -874,6 +900,38 @@
 
     useEffect(() => { save(KEYS.tasks, tasks); }, [tasks]);
     useEffect(() => { save(KEYS.cats, customCats); }, [customCats]);
+
+    // Chargement initial depuis Notion
+    useEffect(() => {
+      if (!PROXY_URL) return;
+      setSyncing(true);
+      notionGet()
+        .then(data => {
+          if (Array.isArray(data)) {
+            setTasks(data);
+            save(KEYS.tasks, data);
+          }
+        })
+        .catch(() => {})
+        .finally(() => setSyncing(false));
+    }, []);
+
+    // Sync une tâche vers Notion (create ou update)
+    const syncTask = useCallback(async (task) => {
+      if (!PROXY_URL) return;
+      try {
+        if (task.notionId) {
+          await notionUpdate(task.notionId, task);
+        } else {
+          const created = await notionCreate(task);
+          if (created?.notionId) {
+            setTasks(prev => prev.map(t =>
+              t.id === task.id ? { ...t, notionId: created.notionId } : t
+            ));
+          }
+        }
+      } catch(e) { /* offline — localStorage garde la mise à jour */ }
+    }, []);
 
     // Auto-escalade : tâches non faites dont la date est passée → backlog Haute priorité
     useEffect(() => {
@@ -904,26 +962,42 @@
       setTasks(prev => {
         const task = prev.find(t=>t.id===id); if(!task) return prev;
         const newDone = !task.done;
-        return prev.map(t => t.id===id ? {...t,done:newDone,doneDate:newDone?todayKey():null} : t);
+        const updated = {...task, done:newDone, doneDate:newDone?todayKey():null};
+        syncTask(updated);
+        return prev.map(t => t.id===id ? updated : t);
       });
-    }, []);
+    }, [syncTask]);
 
     const handleSaveTask = useCallback((task) => {
       setTasks(prev => {
         const exists = prev.find(t=>t.id===task.id);
+        syncTask(task);
         return exists ? prev.map(t=>t.id===task.id?task:t) : [...prev,task];
+      });
+    }, [syncTask]);
+
+    const handleDelete = useCallback((id) => {
+      setTasks(prev => {
+        const task = prev.find(t=>t.id===id);
+        if (task?.notionId && PROXY_URL) notionDelete(task.notionId).catch(()=>{});
+        return prev.filter(t=>t.id!==id);
       });
     }, []);
 
-    const handleDelete = useCallback((id) => setTasks(prev=>prev.filter(t=>t.id!==id)), []);
-
     const handleDuplicate = useCallback((task) => {
-      setTasks(prev => [...prev, {...task, id:Date.now().toString(36)+Math.random().toString(36).slice(2), done:false, doneDate:null, scheduledDate:null, createdAt:new Date().toISOString()}]);
-    }, []);
+      const copy = {...task, id:Date.now().toString(36)+Math.random().toString(36).slice(2), notionId:undefined, done:false, doneDate:null, scheduledDate:null, createdAt:new Date().toISOString()};
+      setTasks(prev => [...prev, copy]);
+      syncTask(copy);
+    }, [syncTask]);
 
     const handlePlanify = useCallback((taskId, date, slot) => {
-      setTasks(prev => prev.map(t => t.id===taskId ? {...t, scheduledDate:date, slot:slot||t.slot} : t));
-    }, []);
+      setTasks(prev => {
+        const updated = prev.map(t => t.id===taskId ? {...t, scheduledDate:date, slot:slot||t.slot} : t);
+        const task = updated.find(t=>t.id===taskId);
+        if (task) syncTask(task);
+        return updated;
+      });
+    }, [syncTask]);
 
     const handleStartTimer = useCallback((task) => {
       setTimer({ taskId:task.id, taskTitle:task.title, remaining:task.duration*60, total:task.duration*60, paused:false });
@@ -970,6 +1044,11 @@
                 <div className="day-name">Mes tâches</div>
                 <div className="date-sub">{getDayName()} {getDateStr()}</div>
               </div>
+              {syncing && (
+                <div style={{fontSize:11,color:'var(--muted)',display:'flex',alignItems:'center',gap:5,marginTop:8}}>
+                  <span style={{display:'inline-block',animation:'spin 1s linear infinite'}}>↻</span> sync…
+                </div>
+              )}
             </div>
           </div>
         )}
