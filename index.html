@@ -46,6 +46,24 @@
     .tab { flex: 1; padding: 13px 6px; border: none; background: none; font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color 0.2s, border-color 0.2s; }
     .tab.active { color: var(--rose-dk); border-bottom-color: var(--rose); font-weight: 500; }
 
+    /* CALENDAR STRIP */
+    .cal-header { padding: 52px 24px 0; background: linear-gradient(180deg, rgba(182,154,148,0.14) 0%, transparent 100%); }
+    .cal-month-row { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 16px; }
+    .cal-day-big { font-family: 'Cormorant Garamond', serif; font-size: 40px; font-weight: 400; color: var(--green-dk); line-height: 1; letter-spacing: -0.01em; }
+    .cal-month-label { font-size: 12px; color: var(--muted); font-weight: 300; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.1em; }
+    .cal-nav { display: flex; gap: 8px; align-items: center; }
+    .cal-nav-btn { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border); background: var(--card); color: var(--text); font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1; transition: all 0.15s; -webkit-tap-highlight-color: transparent; }
+    .cal-nav-btn:active { background: var(--soft); }
+    .week-strip { display: flex; justify-content: space-between; padding: 0 24px 4px; }
+    .day-pill { display: flex; flex-direction: column; align-items: center; gap: 5px; cursor: pointer; padding: 4px 2px; -webkit-tap-highlight-color: transparent; min-width: 38px; }
+    .day-pill-letter { font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+    .day-pill-num { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 400; color: var(--text); transition: all 0.18s; }
+    .day-pill-num.is-today { color: var(--rose-dk); font-weight: 600; }
+    .day-pill-num.is-selected { background: var(--green-dk); color: white; font-weight: 500; }
+    .day-pill-num.is-today.is-selected { background: var(--rose-dk); }
+    .day-pill-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--rose); }
+    .day-pill-dot-placeholder { width: 4px; height: 4px; }
+
     /* CONTENT */
     .content { padding: 18px 24px 120px; }
 
@@ -324,9 +342,76 @@
     );
   }
 
+  // ── CALENDAR STRIP ─────────────────────────────────
+  const MON_FR_UP = ['JAN.','FÉV.','MAR.','AVR.','MAI','JUIN','JUIL.','AOÛT','SEP.','OCT.','NOV.','DÉC.'];
+  const DAY_LETTERS = ['D','L','M','M','J','V','S'];
+  const DAY_LETTERS_MON = ['L','M','M','J','V','S','D']; // lundi en premier
+
+  function CalendarStrip({ selectedDate, onSelectDate, tasks }) {
+    const [weekOffset, setWeekOffset] = useState(() => {
+      // Start on the week containing selectedDate
+      return 0;
+    });
+
+    const getWeekStart = (offset) => {
+      const d = new Date();
+      const dow = d.getDay(); // 0=dim
+      const toMon = dow === 0 ? -6 : 1 - dow;
+      d.setDate(d.getDate() + toMon + offset * 7);
+      d.setHours(0,0,0,0);
+      return d;
+    };
+
+    const weekStart = getWeekStart(weekOffset);
+    const days = Array.from({length:7}, (_, i) => {
+      const d = new Date(weekStart);
+      d.setDate(weekStart.getDate() + i);
+      const key = d.toISOString().split('T')[0];
+      return {
+        key,
+        letter: DAY_LETTERS_MON[i],
+        num: d.getDate(),
+        isToday: key === todayKey(),
+        hasTasks: tasks.some(t => t.scheduledDate === key && !t.done),
+      };
+    });
+
+    const selD = new Date(selectedDate + 'T12:00:00');
+    const monthLabel = `${MON_FR_UP[selD.getMonth()]} ${selD.getFullYear()}`;
+
+    const goTodayWeek = () => setWeekOffset(0);
+
+    return (
+      <div>
+        <div className="cal-header">
+          <div className="cal-month-row">
+            <div>
+              <div className="cal-month-label">{monthLabel}</div>
+              <div className="cal-day-big">{DAY_FR[selD.getDay()]}</div>
+            </div>
+            <div className="cal-nav">
+              <button className="cal-nav-btn" onClick={() => setWeekOffset(o=>o-1)}>‹</button>
+              {weekOffset !== 0 && <button className="cal-nav-btn" style={{fontSize:11,width:'auto',padding:'0 10px',borderRadius:10}} onClick={goTodayWeek}>auj.</button>}
+              <button className="cal-nav-btn" onClick={() => setWeekOffset(o=>o+1)}>›</button>
+            </div>
+          </div>
+        </div>
+        <div className="week-strip">
+          {days.map(d => (
+            <div key={d.key} className="day-pill" onClick={() => onSelectDate(d.key)}>
+              <span className="day-pill-letter">{d.letter}</span>
+              <span className={`day-pill-num ${d.isToday&&d.key!==selectedDate?'is-today':''} ${d.key===selectedDate?(d.isToday?'is-today is-selected':'is-selected'):''}`}>{d.num}</span>
+              {d.hasTasks && d.key!==selectedDate ? <div className="day-pill-dot"/> : <div className="day-pill-dot-placeholder"/>}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   // ── DAY VIEW ───────────────────────────────────────
-  function DayView({ tasks, allCats, onToggle, onMenu, onAddToSlot }) {
-    const t = todayKey();
+  function DayView({ tasks, allCats, onToggle, onMenu, onAddToSlot, selectedDate }) {
+    const t = selectedDate;
     const scheduled = tasks.filter(tk => tk.scheduledDate===t);
     const hasAny = scheduled.length > 0;
     return (
@@ -334,7 +419,7 @@
         {!hasAny ? (
           <div className="empty">
             <div className="empty-icon">📅</div>
-            <div className="empty-text">Rien de planifié pour aujourd'hui.<br/>Va dans "À faire" pour organiser ta journée.</div>
+            <div className="empty-text">Rien de planifié ce jour-là.<br/>Va dans "À faire" pour planifier tes tâches.</div>
           </div>
         ) : (
           SLOTS.map(slot => (
@@ -350,26 +435,20 @@
 
   // ── BACKLOG VIEW ───────────────────────────────────
   function BacklogView({ tasks, allCats, onToggle, onMenu }) {
-    const [catFilter, setCatFilter] = useState(null);
-    const t = todayKey();
-    // Show unscheduled + overdue (scheduled before today, not done)
-    const backlog = tasks.filter(tk => !tk.done && (!tk.scheduledDate || tk.scheduledDate < t));
-    const overdue = backlog.filter(tk => tk.scheduledDate && tk.scheduledDate < t);
-    const unscheduled = backlog.filter(tk => !tk.scheduledDate);
-    const usedCats = allCats.filter(c => backlog.some(t => (t.categories||[]).includes(c.id)));
-    const filtered = catFilter ? backlog.filter(t => (t.categories||[]).includes(catFilter)) : backlog;
+    const [catFilter, setCatFilter]   = useState(null);
+    const [showDone,  setShowDone]    = useState(false);
 
-    if (backlog.length===0) return (
-      <div className="content">
-        <div className="empty">
-          <div className="empty-icon">🌿</div>
-          <div className="empty-text">Tout est planifié ou terminé.<br/>Belle organisation !</div>
-        </div>
-      </div>
-    );
+    // Toutes les tâches non faites, y compris celles planifiées
+    const pending  = tasks.filter(tk => !tk.done);
+    const done     = tasks.filter(tk => tk.done).sort((a,b) => (b.doneDate||'').localeCompare(a.doneDate||''));
+    const usedCats = allCats.filter(c => pending.some(t => (t.categories||[]).includes(c.id)));
+
+    const applyFilter = (list) => catFilter ? list.filter(t => (t.categories||[]).includes(catFilter)) : list;
+
     return (
       <div className="content">
-        {usedCats.length>0 && (
+        {/* Filtre catégories */}
+        {usedCats.length > 0 && (
           <div className="cat-filter-row">
             <button className={`cat-filter-chip ${!catFilter?'active':''}`} onClick={() => setCatFilter(null)}>Toutes</button>
             {usedCats.map(c => (
@@ -378,20 +457,16 @@
             ))}
           </div>
         )}
-        {overdue.length>0 && (!catFilter || overdue.some(t=>(t.categories||[]).includes(catFilter))) && (
-          <div style={{marginBottom:16}}>
-            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
-              <div style={{width:8,height:8,borderRadius:'50%',background:'#c0392b',flexShrink:0}}/>
-              <span style={{fontSize:11,fontWeight:500,textTransform:'uppercase',letterSpacing:'0.12em',color:'#c0392b'}}>En retard</span>
-              <span style={{fontSize:11,color:'var(--muted)',marginLeft:'auto'}}>{overdue.length}</span>
-            </div>
-            {(catFilter ? overdue.filter(t=>(t.categories||[]).includes(catFilter)) : overdue)
-              .map(t => <TaskCard key={t.id} task={t} allCats={allCats} onToggle={onToggle} onMenu={onMenu} showDate />)}
+
+        {/* Tâches par priorité */}
+        {pending.length === 0 && (
+          <div className="empty" style={{paddingTop:32}}>
+            <div className="empty-icon">🌿</div>
+            <div className="empty-text">Tout est fait !<br/>Tu peux souffler.</div>
           </div>
         )}
         {PRIORITIES.map(p => {
-          const pts = (catFilter ? unscheduled.filter(t=>(t.categories||[]).includes(catFilter)) : unscheduled)
-            .filter(t => t.priority===p);
+          const pts = applyFilter(pending).filter(t => t.priority === p);
           if (!pts.length) return null;
           return (
             <div key={p}>
@@ -400,12 +475,27 @@
                 <span className="prio-name">{p}</span>
                 <span className="prio-count">{pts.length}</span>
               </div>
-              {pts.map(t => <TaskCard key={t.id} task={t} allCats={allCats} onToggle={onToggle} onMenu={onMenu} />)}
+              {pts.map(t => <TaskCard key={t.id} task={t} allCats={allCats} onToggle={onToggle} onMenu={onMenu} showDate />)}
             </div>
           );
         })}
-        {filtered.length===0 && catFilter && (
-          <div style={{color:'var(--muted)',fontSize:14,textAlign:'center',padding:'32px 0',fontStyle:'italic'}}>Aucune tâche dans cette catégorie</div>
+
+        {/* Section Fait */}
+        {done.length > 0 && (
+          <div style={{marginTop:24}}>
+            <div
+              onClick={() => setShowDone(o=>!o)}
+              style={{display:'flex',alignItems:'center',gap:8,padding:'10px 0',cursor:'pointer',userSelect:'none',WebkitTapHighlightColor:'transparent'}}
+            >
+              <span style={{fontSize:11,fontWeight:500,textTransform:'uppercase',letterSpacing:'0.12em',color:'var(--muted)'}}>Fait ({done.length})</span>
+              <span style={{color:'var(--muted)',fontSize:13,marginLeft:'auto',transition:'transform 0.2s',display:'inline-block',transform:showDone?'rotate(180deg)':'none'}}>⌄</span>
+            </div>
+            {showDone && (
+              <div>
+                {applyFilter(done).map(t => <TaskCard key={t.id} task={t} allCats={allCats} onToggle={onToggle} onMenu={onMenu} showDate />)}
+              </div>
+            )}
+          </div>
         )}
       </div>
     );
@@ -413,9 +503,25 @@
 
   // ── PLANIFY SHEET ──────────────────────────────────
   function PlanifySheet({ task, onClose, onPlanify }) {
-    const [selDate, setSelDate] = useState(todayKey());
+    const [selDate, setSelDate] = useState(task.scheduledDate || todayKey());
     const [selSlot, setSelSlot] = useState(task.slot || 'Matin');
-    const dates = DATE_OPTS();
+
+    const t = todayKey();
+    const maxDate = (() => { const d=new Date(); d.setMonth(d.getMonth()+6); return d.toISOString().split('T')[0]; })();
+    const quickDates = [
+      { key: t, label: "Aujourd'hui" },
+      { key: addDays(1), label: 'Demain' },
+      { key: addDays(3), label: 'Dans 3 j.' },
+      { key: addDays(7), label: 'Dans 1 sem.' },
+      { key: addDays(14), label: 'Dans 2 sem.' },
+      { key: addDays(30), label: 'Dans 1 mois' },
+    ];
+    const isQuick = quickDates.some(d => d.key === selDate);
+    const fmtDateFR = (key) => {
+      const d = new Date(key + 'T12:00:00');
+      return `${d.getDate()} ${MON_FR[d.getMonth()]} ${d.getFullYear()}`;
+    };
+
     return (
       <div className="sheet-overlay" onClick={e => e.target===e.currentTarget && onClose()}>
         <div className="planify-sheet">
@@ -423,12 +529,25 @@
           <div className="sheet-title">Planifier</div>
           <div className="sheet-subtitle" style={{marginBottom:16}}>"{task.title.length>40?task.title.slice(0,40)+'…':task.title}"</div>
           <div className="form-group">
-            <label className="form-label">Quand ?</label>
-            <div className="chips-row">
-              {dates.map(d => (
+            <label className="form-label">Raccourcis</label>
+            <div className="chips-row" style={{flexWrap:'wrap'}}>
+              {quickDates.map(d => (
                 <button key={d.key} className={`chip-sel ${selDate===d.key?'sel':''}`} onClick={() => setSelDate(d.key)}>{d.label}</button>
               ))}
             </div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Ou choisir une date précise</label>
+            <input
+              type="date"
+              className="form-input"
+              value={selDate}
+              min={t}
+              max={maxDate}
+              onChange={e => e.target.value && setSelDate(e.target.value)}
+              style={{colorScheme:'light'}}
+            />
+            {!isQuick && <div style={{fontSize:12,color:'var(--rose-dk)',marginTop:6}}>📅 {fmtDateFR(selDate)}</div>}
           </div>
           <div className="form-group">
             <label className="form-label">Quel moment ?</label>
@@ -488,6 +607,8 @@
     const [duration,   setDuration]   = useState(initial?.duration || 30);
     const [categories, setCategories] = useState(initial?.categories || []);
     const [notes,      setNotes]      = useState(initial?.notes || '');
+    const [customDur,  setCustomDur]  = useState('');
+    const [showDurInput, setShowDurInput] = useState(() => initial?.duration && !DURATIONS.includes(initial.duration));
     const [showNewCat, setShowNewCat] = useState(false);
     const [newIcon,    setNewIcon]    = useState('');
     const [newLabel,   setNewLabel]   = useState('');
@@ -539,7 +660,28 @@
           </div>
           <div className="form-group">
             <label className="form-label">Durée estimée</label>
-            <div className="chips-row">{DURATIONS.map(d=><button key={d} className={`chip-sel ${duration===d?'sel':''}`} onClick={()=>setDuration(d)}>{fmtDur(d)}</button>)}</div>
+            <div className="chips-row" style={{flexWrap:'wrap'}}>
+              {DURATIONS.map(d=>(
+                <button key={d} className={`chip-sel ${duration===d&&!showDurInput?'sel':''}`} onClick={()=>{setDuration(d);setShowDurInput(false);setCustomDur('');}}>{fmtDur(d)}</button>
+              ))}
+              <button className={`chip-sel ${showDurInput?'sel':''}`} onClick={()=>setShowDurInput(true)}>✏️ Autre</button>
+            </div>
+            {showDurInput && (
+              <div style={{display:'flex',gap:8,alignItems:'center',marginTop:10}}>
+                <input
+                  className="form-input"
+                  type="number"
+                  min="1"
+                  max="480"
+                  placeholder="Ex: 75"
+                  value={customDur}
+                  onChange={e=>{setCustomDur(e.target.value);const v=parseInt(e.target.value);if(v>0)setDuration(v);}}
+                  style={{flex:1}}
+                  autoFocus
+                />
+                <span style={{fontSize:13,color:'var(--muted)',whiteSpace:'nowrap'}}>minutes{duration&&showDurInput&&customDur?` = ${fmtDur(duration)}`:''}</span>
+              </div>
+            )}
           </div>
           <div className="form-group">
             <label className="form-label">Catégories {categories.length>0 && <span style={{color:'var(--green-dk)',marginLeft:6,textTransform:'none',letterSpacing:0,fontStyle:'normal'}}>{categories.length} choisie{categories.length>1?'s':''}</span>}</label>
@@ -591,9 +733,10 @@
 
   // ── APP ────────────────────────────────────────────
   function App() {
-    const [tasks,      setTasks]      = useState(() => migrateTasks(load(KEYS.tasks, [])));
-    const [customCats, setCustomCats] = useState(() => load(KEYS.cats, []));
-    const [tab,        setTab]        = useState('day');
+    const [tasks,        setTasks]        = useState(() => migrateTasks(load(KEYS.tasks, [])));
+    const [customCats,   setCustomCats]   = useState(() => load(KEYS.cats, []));
+    const [tab,          setTab]          = useState('backlog');
+    const [selectedDate, setSelectedDate] = useState(todayKey);
     const [showForm,   setShowForm]   = useState(false);
     const [editTask,   setEditTask]   = useState(null);
     const [ctxTask,    setCtxTask]    = useState(null);
@@ -610,6 +753,22 @@
 
     useEffect(() => { save(KEYS.tasks, tasks); }, [tasks]);
     useEffect(() => { save(KEYS.cats, customCats); }, [customCats]);
+
+    // Auto-escalade : tâches non faites dont la date est passée → backlog Haute priorité
+    useEffect(() => {
+      const t = todayKey();
+      setTasks(prev => {
+        let changed = false;
+        const updated = prev.map(task => {
+          if (!task.done && task.scheduledDate && task.scheduledDate < t) {
+            changed = true;
+            return { ...task, scheduledDate: null, priority: 'Haute' };
+          }
+          return task;
+        });
+        return changed ? updated : prev;
+      });
+    }, []);
 
     // Timer tick
     useEffect(() => {
@@ -682,22 +841,15 @@
           </div>
         )}
 
-        <div className="header">
-          <div className="header-row">
-            <div>
-              <div className="day-name">{getDayName()}</div>
-              <div className="date-sub">{getDateStr()}</div>
-            </div>
-          </div>
-        </div>
+        <CalendarStrip selectedDate={selectedDate} onSelectDate={setSelectedDate} tasks={tasks} />
 
         <div className="tabs">
-          {[{id:'day',label:"Aujourd'hui"},{id:'backlog',label:'À faire'}].map(t=>(
+          {[{id:'day',label:'Planning'},{id:'backlog',label:'À faire'}].map(t=>(
             <button key={t.id} className={`tab ${tab===t.id?'active':''}`} onClick={()=>setTab(t.id)}>{t.label}</button>
           ))}
         </div>
 
-        {tab==='day'     && <DayView tasks={tasks} allCats={allCats} onToggle={handleToggle} onMenu={setCtxTask} onAddToSlot={s=>openAdd(s,todayKey())} />}
+        {tab==='day'     && <DayView tasks={tasks} allCats={allCats} onToggle={handleToggle} onMenu={setCtxTask} onAddToSlot={s=>openAdd(s,selectedDate)} selectedDate={selectedDate} />}
         {tab==='backlog' && <BacklogView tasks={tasks} allCats={allCats} onToggle={handleToggle} onMenu={setCtxTask} />}
 
         <div className="fab-area">
@@ -707,7 +859,7 @@
               <span className="fab-voice-label">Parler</span>
             </button>
           )}
-          <button className="fab" onClick={()=>openAdd()}>+</button>
+          <button className="fab" onClick={()=>tab==='day'?openAdd(null,selectedDate):openAdd()}>+</button>
         </div>
 
         {ctxTask && (
