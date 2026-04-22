@@ -1095,19 +1095,29 @@
       } catch(e) { /* offline — localStorage garde la mise à jour */ }
     }, [customCats]);
 
-    // Auto-escalade : tâches non faites dont la date est passée → backlog Haute priorité
+    // Auto-escalade : tâches non faites dont la date est passée → backlog Haute priorité + sync Notion
     useEffect(() => {
       const t = todayKey();
+      const toSync = [];
       setTasks(prev => {
         let changed = false;
         const updated = prev.map(task => {
           if (!task.done && task.scheduledDate && task.scheduledDate < t) {
             changed = true;
-            return { ...task, scheduledDate: null, priority: 'Haute' };
+            const upd = { ...task, scheduledDate: null, priority: 'Haute' };
+            toSync.push(upd);
+            return upd;
           }
           return task;
         });
-        return changed ? updated : prev;
+        if (!changed) return prev;
+        // Sync vers Notion sans bloquer le rendu
+        if (PROXY_URL) {
+          toSync.forEach(task => {
+            if (task.notionId) notionUpdate(task.notionId, task).catch(() => {});
+          });
+        }
+        return updated;
       });
     }, []);
 
