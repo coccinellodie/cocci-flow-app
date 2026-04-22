@@ -96,7 +96,7 @@
     .slot-section { margin-bottom: 24px; }
     .slot-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent; }
     .slot-icon { font-size: 15px; }
-    .slot-name { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.12em; }
+    .slot-name { font-family: 'Cormorant Garamond', serif; font-size: 19px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; }
     .slot-count { font-size: 11px; border-radius: 10px; padding: 2px 8px; font-weight: 500; opacity: 0.75; }
     .slot-chevron { margin-left: auto; color: var(--muted); font-size: 14px; transition: transform 0.2s; display: inline-block; }
     .slot-chevron.open { transform: rotate(90deg); }
@@ -264,6 +264,7 @@
     { id: 'formation', icon: '📚', label: 'Formation' },
     { id: 'finance',   icon: '💰', label: 'Finance' },
     { id: 'social',    icon: '💬', label: 'Social' },
+    { id: 'marketing', icon: '📣', label: 'Marketing & Visibilité' },
   ];
 
   // ── UTILS ──────────────────────────────────────────
@@ -395,7 +396,6 @@
         </div>
         {open && <>
           {allDone && <div className="celebration">✨ Tout terminé !</div>}
-          {visible.length===0 && !allDone && <div style={{color:'var(--muted)',fontSize:13,padding:'2px 0 8px',fontStyle:'italic'}}>Rien ici…</div>}
           {visible.map(t => <TaskCard key={t.id} task={t} allCats={allCats} onToggle={onToggle} onMenu={onMenu} />)}
           <button className="slot-add-btn" onClick={() => onAddToSlot(slot.id)}>+ Ajouter ici</button>
         </>}
@@ -546,7 +546,8 @@
   // ── DAY VIEW ───────────────────────────────────────
   function DayView({ tasks, allCats, onToggle, onMenu, onAddToSlot, selectedDate }) {
     const t = selectedDate;
-    const scheduled = tasks.filter(tk => tk.scheduledDate===t);
+    const scheduled = tasks.filter(tk => tk.scheduledDate===t)
+      .sort((a, b) => (b.createdAt||'').localeCompare(a.createdAt||''));
     const hasAny = scheduled.length > 0;
     return (
       <div className="content">
@@ -593,8 +594,9 @@
     const [catFilter,   setCatFilter]   = useState(null);
     const [openPending, setOpenPending] = useState(true);
 
-    // Toutes les tâches non faites, y compris celles planifiées
-    const pending  = tasks.filter(tk => !tk.done);
+    // Toutes les tâches non faites, triées du plus récent au plus ancien
+    const pending  = tasks.filter(tk => !tk.done)
+      .sort((a, b) => (b.createdAt||'').localeCompare(a.createdAt||''));
     const usedCats = allCats.filter(c => pending.some(t => (t.categories||[]).includes(c.id)));
 
     const applyFilter = (list) => catFilter ? list.filter(t => (t.categories||[]).includes(catFilter)) : list;
@@ -642,18 +644,19 @@
 
   // ── DONE VIEW ──────────────────────────────────────
   function DoneView({ tasks, allCats, onToggle, onMenu }) {
-    const done = tasks.filter(tk => tk.done)
-      .sort((a, b) => (b.doneDate||'').localeCompare(a.doneDate||''));
+    const [showHistory, setShowHistory] = useState(false);
 
     const today = todayKey();
     const yDay  = ydayKey();
 
-    const todayDone = done.filter(t => t.doneDate === today);
+    const allDone   = tasks.filter(tk => tk.done).sort((a,b) => (b.doneDate||'').localeCompare(a.doneDate||''));
+    const todayDone = allDone.filter(t => t.doneDate === today);
+    const histDone  = allDone.filter(t => t.doneDate !== today);
     const total     = todayDone.length;
 
-    // Regrouper par date
+    // Regrouper historique par date
     const byDate = {};
-    done.forEach(t => {
+    histDone.forEach(t => {
       const k = t.doneDate || 'unknown';
       if (!byDate[k]) byDate[k] = [];
       byDate[k].push(t);
@@ -686,24 +689,40 @@
           <div className="done-hero-message">{heroMessage()}</div>
         </div>
 
-        {done.length === 0 && (
+        {/* Tâches d'aujourd'hui */}
+        {todayDone.length === 0 && (
           <div className="empty" style={{paddingTop:0}}>
-            <div className="empty-text">Rien de fait encore.<br/>Coche ta première tâche 🌿</div>
+            <div className="empty-text">Rien de coché aujourd'hui encore.<br/>Coche ta première tâche 🌿</div>
           </div>
         )}
+        {todayDone.map(t => (
+          <TaskCard key={t.id} task={t} allCats={allCats} onToggle={onToggle} onMenu={onMenu} />
+        ))}
 
-        {/* Liste par jour */}
-        {dates.map(dateKey => (
-          <div key={dateKey} className="done-day-group">
-            <div className="done-day-header">
-              <span className="done-day-label">{dayLabel(dateKey)}</span>
-              <span className="done-day-count">{byDate[dateKey].length}</span>
+        {/* Historique complet (fermé par défaut) */}
+        {histDone.length > 0 && (
+          <div style={{marginTop:20}}>
+            <div
+              onClick={() => setShowHistory(o=>!o)}
+              style={{display:'flex',alignItems:'center',gap:8,padding:'12px 0',cursor:'pointer',userSelect:'none',WebkitTapHighlightColor:'transparent',borderTop:'1px solid var(--border)'}}
+            >
+              <span style={{fontSize:11,fontWeight:500,textTransform:'uppercase',letterSpacing:'0.12em',color:'var(--muted)'}}>Tout l'historique</span>
+              <span style={{fontSize:12,color:'var(--muted)',background:'var(--soft)',borderRadius:10,padding:'1px 7px'}}>{histDone.length}</span>
+              <span style={{color:'var(--muted)',fontSize:13,marginLeft:'auto',transition:'transform 0.2s',display:'inline-block',transform:showHistory?'rotate(180deg)':'none'}}>⌄</span>
             </div>
-            {byDate[dateKey].map(t => (
-              <TaskCard key={t.id} task={t} allCats={allCats} onToggle={onToggle} onMenu={onMenu} />
+            {showHistory && dates.map(dateKey => (
+              <div key={dateKey} className="done-day-group">
+                <div className="done-day-header">
+                  <span className="done-day-label">{dayLabel(dateKey)}</span>
+                  <span className="done-day-count">{byDate[dateKey].length}</span>
+                </div>
+                {byDate[dateKey].map(t => (
+                  <TaskCard key={t.id} task={t} allCats={allCats} onToggle={onToggle} onMenu={onMenu} />
+                ))}
+              </div>
             ))}
           </div>
-        ))}
+        )}
       </div>
     );
   }
@@ -777,9 +796,10 @@
   }
 
   // ── CONTEXT MENU ───────────────────────────────────
-  function ContextMenu({ task, onClose, onPlanify, onEdit, onDuplicate, onStartTimer, onDelete }) {
+  function ContextMenu({ task, onClose, onPlanify, onUnschedule, onEdit, onDuplicate, onStartTimer, onDelete }) {
     const opts = [
       { icon: '📅', label: task.scheduledDate ? 'Replanifier' : 'Planifier', action: onPlanify },
+      ...(task.scheduledDate ? [{ icon: '↩️', label: 'Remettre dans À faire', action: onUnschedule }] : []),
       { icon: '▶️', label: 'Démarrer la tâche', action: onStartTimer },
       { icon: '📋', label: 'Faire une copie', action: onDuplicate },
       { icon: '✏️', label: 'Modifier la tâche', action: onEdit },
@@ -1013,6 +1033,36 @@
           if (Array.isArray(data)) {
             setTasks(data);
             save(KEYS.tasks, data);
+            // Récupère les définitions de catégories custom manquantes depuis les tâches Notion
+            setCustomCats(prev => {
+              const knownIds = new Set([
+                ...DEFAULT_CATS.map(c => c.id),
+                ...prev.map(c => c.id),
+              ]);
+              const recovered = [];
+              data.forEach(task => {
+                // Nouvelles tâches avec _catDefs (format enrichi)
+                if (task._catDefs) {
+                  Object.entries(task._catDefs).forEach(([id, meta]) => {
+                    if (!knownIds.has(id)) {
+                      recovered.push({ id, icon: meta.icon || '🏷️', label: meta.label || id });
+                      knownIds.add(id);
+                    }
+                  });
+                }
+                // Anciens IDs bruts (custom_TIMESTAMP) sans définition connue
+                (task.categories || []).forEach(id => {
+                  if (id.startsWith('custom_') && !knownIds.has(id)) {
+                    recovered.push({ id, icon: '🏷️', label: '(sans nom)' });
+                    knownIds.add(id);
+                  }
+                });
+              });
+              if (!recovered.length) return prev;
+              const merged = [...prev, ...recovered];
+              save(KEYS.cats, merged);
+              return merged;
+            });
           }
         })
         .catch(() => {})
@@ -1020,13 +1070,22 @@
     }, []);
 
     // Sync une tâche vers Notion (create ou update)
+    // Inclut _catDefs pour que les catégories custom soient lisibles dans Notion
     const syncTask = useCallback(async (task) => {
       if (!PROXY_URL) return;
+      const catDefMap = {};
+      (task.categories || []).forEach(id => {
+        const cat = customCats.find(c => c.id === id);
+        if (cat) catDefMap[id] = { icon: cat.icon, label: cat.label };
+      });
+      const taskToSync = Object.keys(catDefMap).length
+        ? { ...task, _catDefs: catDefMap }
+        : task;
       try {
         if (task.notionId) {
-          await notionUpdate(task.notionId, task);
+          await notionUpdate(task.notionId, taskToSync);
         } else {
-          const created = await notionCreate(task);
+          const created = await notionCreate(taskToSync);
           if (created?.notionId) {
             setTasks(prev => prev.map(t =>
               t.id === task.id ? { ...t, notionId: created.notionId } : t
@@ -1034,7 +1093,7 @@
           }
         }
       } catch(e) { /* offline — localStorage garde la mise à jour */ }
-    }, []);
+    }, [customCats]);
 
     // Auto-escalade : tâches non faites dont la date est passée → backlog Haute priorité
     useEffect(() => {
@@ -1183,6 +1242,7 @@
           <ContextMenu task={ctxTask}
             onClose={() => setCtxTask(null)}
             onPlanify={() => setPlanTask(ctxTask)}
+            onUnschedule={() => handlePlanify(ctxTask.id, null, ctxTask.slot)}
             onEdit={() => { setEditTask(ctxTask); setShowForm(true); }}
             onDuplicate={() => handleDuplicate(ctxTask)}
             onStartTimer={() => handleStartTimer(ctxTask)}
