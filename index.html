@@ -701,7 +701,7 @@
               <div className="cal-nav">
                 <button className="cal-dots-btn" onClick={() => setShowMonthView(true)} title="Vue mois">···</button>
                 <button className="cal-nav-btn" onClick={() => setWeekOffset(o=>o-1)}>‹</button>
-                {weekOffset !== 0 && <button className="cal-nav-btn" style={{fontSize:11,width:'auto',padding:'0 10px',borderRadius:10}} onClick={() => setWeekOffset(0)}>auj.</button>}
+                {weekOffset !== 0 && <button className="cal-nav-btn" style={{fontSize:11,width:'auto',padding:'0 10px',borderRadius:10}} onClick={() => { setWeekOffset(0); onSelectDate(todayKey()); }}>auj.</button>}
                 <button className="cal-nav-btn" onClick={() => setWeekOffset(o=>o+1)}>›</button>
               </div>
             </div>
