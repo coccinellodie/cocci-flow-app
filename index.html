@@ -386,14 +386,25 @@
 
       const LONG_PRESS_MS = 380; // délai avant activation du glisser
 
-      const cancelTouch = () => {
+      const cleanupTouch = () => {
         const ts = touchRef.current;
         if (!ts) return;
         clearTimeout(ts.timer);
-        el.style.transform = '';
+        // Supprime le ghost s'il existe (cas touchcancel ou sortie inattendue)
+        if (ts.ghost) { try { ts.ghost.remove(); } catch(e) {} }
+        if (ts.dragging) {
+          el.classList.remove('dragging');
+          document.querySelectorAll('[data-drop-zone]').forEach(dz => dz.classList.remove('drop-zone-over'));
+          if (dragRef) dragRef.current = null;
+        }
+        el.style.transform  = '';
         el.style.transition = '';
         touchRef.current = null;
+        // Filet de sécurité : supprime tout ghost orphelin dans la page
+        document.querySelectorAll('#drag-ghost').forEach(g => { try { g.remove(); } catch(e) {} });
       };
+
+      const cancelTouch = cleanupTouch;
 
       const onTouchStart = (e) => {
         if (task.done || e.touches.length !== 1) return;
@@ -479,25 +490,21 @@
       const onTouchEnd = (e) => {
         const ts = touchRef.current;
         if (!ts) return;
-        clearTimeout(ts.timer);
-        el.style.transform  = '';
-        el.style.transition = '';
-        if (!ts.dragging) { touchRef.current = null; return; }
+        if (!ts.dragging) { cleanupTouch(); return; }
         const touch = e.changedTouches[0];
-        ts.ghost && ts.ghost.remove();
-        el.classList.remove('dragging');
-        document.querySelectorAll('[data-drop-zone]').forEach(dz => dz.classList.remove('drop-zone-over'));
+        const taskId = ts.taskId;
+        // Nettoie tout avant elementFromPoint (ghost pointer-events:none mais on retire quand même)
+        cleanupTouch();
+        // Trouve la zone de dépôt sous le doigt
         let target = document.elementFromPoint(touch.clientX, touch.clientY);
         while (target && target !== document.body) {
           if (target.dataset && target.dataset.dropZone) {
             const [type, value] = target.dataset.dropZone.split(':');
-            if (onDrop) onDrop(ts.taskId, type, value);
+            if (onDrop) onDrop(taskId, type, value);
             break;
           }
           target = target.parentElement;
         }
-        if (dragRef) dragRef.current = null;
-        touchRef.current = null;
       };
 
       const onTouchCancel = () => cancelTouch();
