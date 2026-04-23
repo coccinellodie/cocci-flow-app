@@ -384,12 +384,32 @@
       const el = cardRef.current;
       if (!el) return;
 
+      const LONG_PRESS_MS = 380; // délai avant activation du glisser
+
+      const cancelTouch = () => {
+        const ts = touchRef.current;
+        if (!ts) return;
+        clearTimeout(ts.timer);
+        el.style.transform = '';
+        el.style.transition = '';
+        touchRef.current = null;
+      };
+
       const onTouchStart = (e) => {
         if (task.done || e.touches.length !== 1) return;
+        const touch = e.touches[0];
         touchRef.current = {
-          taskId: task.id, dragging: false, ghost: null,
-          startX: e.touches[0].clientX, startY: e.touches[0].clientY,
+          taskId: task.id, dragging: false, ready: false, ghost: null,
+          startX: touch.clientX, startY: touch.clientY, timer: null,
         };
+        // Démarre le minuteur : appui maintenu → active le mode glisser
+        touchRef.current.timer = setTimeout(() => {
+          if (!touchRef.current) return;
+          touchRef.current.ready = true;
+          // Feedback visuel subtil : légère compression
+          el.style.transition = 'transform 0.15s';
+          el.style.transform  = 'scale(0.96)';
+        }, LONG_PRESS_MS);
       };
 
       const onTouchMove = (e) => {
@@ -397,14 +417,25 @@
         if (!ts) return;
         const touch = e.touches[0];
         const dx = touch.clientX - ts.startX, dy = touch.clientY - ts.startY;
-        if (!ts.dragging && Math.sqrt(dx*dx + dy*dy) < 10) return;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+
+        // Si le doigt bouge trop AVANT l'activation → c'est un scroll, on annule
+        if (!ts.ready) {
+          if (dist > 6) cancelTouch();
+          return;
+        }
+
+        // Appui maintenu confirmé, maintenant un petit mouvement crée le ghost
+        if (!ts.dragging && dist < 4) return;
 
         if (!ts.dragging) {
+          // Réinitialise le feedback visuel
+          el.style.transform  = '';
+          el.style.transition = '';
           const rect = el.getBoundingClientRect();
           const ghost = el.cloneNode(true);
           ghost.id = 'drag-ghost';
           ghost.removeAttribute('draggable');
-          // Inline style overrides everything — no rotation, no transition, exact position
           ghost.style.cssText = [
             'position:fixed',
             'top:' + rect.top + 'px',
@@ -430,10 +461,8 @@
 
         e.preventDefault();
         if (ts.ghost) {
-          const newTop  = touch.clientY - ts.offsetY;
-          const newLeft = touch.clientX - ts.offsetX;
-          ts.ghost.style.top  = newTop  + 'px';
-          ts.ghost.style.left = newLeft + 'px';
+          ts.ghost.style.top  = (touch.clientY - ts.offsetY) + 'px';
+          ts.ghost.style.left = (touch.clientX - ts.offsetX) + 'px';
         }
         document.querySelectorAll('[data-drop-zone]').forEach(dz => {
           const r = dz.getBoundingClientRect();
@@ -446,12 +475,15 @@
 
       const onTouchEnd = (e) => {
         const ts = touchRef.current;
-        if (!ts || !ts.dragging) { touchRef.current = null; return; }
+        if (!ts) return;
+        clearTimeout(ts.timer);
+        el.style.transform  = '';
+        el.style.transition = '';
+        if (!ts.dragging) { touchRef.current = null; return; }
         const touch = e.changedTouches[0];
         ts.ghost && ts.ghost.remove();
         el.classList.remove('dragging');
         document.querySelectorAll('[data-drop-zone]').forEach(dz => dz.classList.remove('drop-zone-over'));
-        // find drop target
         let target = document.elementFromPoint(touch.clientX, touch.clientY);
         while (target && target !== document.body) {
           if (target.dataset && target.dataset.dropZone) {
@@ -465,13 +497,17 @@
         touchRef.current = null;
       };
 
-      el.addEventListener('touchstart',  onTouchStart, { passive: true });
-      el.addEventListener('touchmove',   onTouchMove,  { passive: false });
-      el.addEventListener('touchend',    onTouchEnd,   { passive: true });
+      const onTouchCancel = () => cancelTouch();
+
+      el.addEventListener('touchstart',  onTouchStart,  { passive: true });
+      el.addEventListener('touchmove',   onTouchMove,   { passive: false });
+      el.addEventListener('touchend',    onTouchEnd,    { passive: true });
+      el.addEventListener('touchcancel', onTouchCancel, { passive: true });
       return () => {
         el.removeEventListener('touchstart',  onTouchStart);
         el.removeEventListener('touchmove',   onTouchMove);
         el.removeEventListener('touchend',    onTouchEnd);
+        el.removeEventListener('touchcancel', onTouchCancel);
       };
     }, [task.id, task.done]);
 
