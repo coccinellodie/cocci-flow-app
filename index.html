@@ -401,13 +401,15 @@
         touchRef.current = {
           taskId: task.id, dragging: false, ready: false, ghost: null,
           startX: touch.clientX, startY: touch.clientY, timer: null,
+          rect: null, // rect capturé AVANT le scale, pour un positionnement exact
         };
-        // Démarre le minuteur : appui maintenu → active le mode glisser
         touchRef.current.timer = setTimeout(() => {
           if (!touchRef.current) return;
+          // Capture rect avant d'appliquer le scale — sinon getBoundingClientRect() renvoie
+          // une valeur décalée et le ghost apparaît au mauvais endroit
+          touchRef.current.rect  = el.getBoundingClientRect();
           touchRef.current.ready = true;
-          // Feedback visuel subtil : légère compression
-          el.style.transition = 'transform 0.15s';
+          el.style.transition = 'transform 0.12s';
           el.style.transform  = 'scale(0.96)';
         }, LONG_PRESS_MS);
       };
@@ -419,20 +421,22 @@
         const dx = touch.clientX - ts.startX, dy = touch.clientY - ts.startY;
         const dist = Math.sqrt(dx*dx + dy*dy);
 
-        // Si le doigt bouge trop AVANT l'activation → c'est un scroll, on annule
+        // Pas encore activé → scroll normal, mais annule si trop de mouvement
         if (!ts.ready) {
           if (dist > 6) cancelTouch();
           return;
         }
 
-        // Appui maintenu confirmé, maintenant un petit mouvement crée le ghost
+        // Drag activé → bloque le scroll de la page dès maintenant
+        e.preventDefault();
+
         if (!ts.dragging && dist < 4) return;
 
         if (!ts.dragging) {
-          // Réinitialise le feedback visuel
           el.style.transform  = '';
           el.style.transition = '';
-          const rect = el.getBoundingClientRect();
+          // Utilise le rect pré-scale stocké au moment du long-press
+          const rect = ts.rect || el.getBoundingClientRect();
           const ghost = el.cloneNode(true);
           ghost.id = 'drag-ghost';
           ghost.removeAttribute('draggable');
@@ -451,7 +455,7 @@
             'border-radius:14px',
           ].join(';') + ';';
           document.body.appendChild(ghost);
-          ts.ghost = ghost;
+          ts.ghost   = ghost;
           ts.offsetX = touch.clientX - rect.left;
           ts.offsetY = touch.clientY - rect.top;
           ts.dragging = true;
@@ -459,7 +463,6 @@
           if (dragRef) dragRef.current = { taskId: ts.taskId };
         }
 
-        e.preventDefault();
         if (ts.ghost) {
           ts.ghost.style.top  = (touch.clientY - ts.offsetY) + 'px';
           ts.ghost.style.left = (touch.clientX - ts.offsetX) + 'px';
