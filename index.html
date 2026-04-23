@@ -102,12 +102,11 @@
     .slot-chevron.open { transform: rotate(90deg); }
 
     /* TASK CARD */
-    .task-card { background: var(--card); border-radius: 14px; padding: 13px 12px 13px 18px; margin-bottom: 8px; display: flex; align-items: flex-start; gap: 10px; border: 1px solid var(--border); transition: opacity 0.25s, transform 0.15s; position: relative; overflow: hidden; }
+    .task-card { background: var(--card); border-radius: 14px; padding: 13px 12px 13px 18px; margin-bottom: 8px; display: flex; align-items: flex-start; gap: 10px; border: 1px solid var(--border); transition: opacity 0.25s; position: relative; overflow: hidden; }
     .task-card.dragging { opacity: 0.35; transform: scale(0.97); }
     .task-card[draggable=true]:not(.done) { cursor: grab; }
     .drop-zone { transition: background 0.15s, outline-color 0.15s; border-radius: 14px; }
     .drop-zone-over { background: rgba(182,154,148,0.09) !important; outline: 2px dashed var(--rose) !important; outline-offset: -2px; }
-    #drag-ghost { pointer-events: none !important; z-index: 9999; opacity: 0.88; transform: rotate(-1.5deg) scale(1.03); box-shadow: 0 10px 32px rgba(0,0,0,0.18); border-radius: 14px; }
     .task-card.done { opacity: 0.42; }
     .task-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; border-radius: 14px 0 0 14px; }
     .task-card.p-haute::before   { background: #B05C4B; }
@@ -404,7 +403,22 @@
           const rect = el.getBoundingClientRect();
           const ghost = el.cloneNode(true);
           ghost.id = 'drag-ghost';
-          ghost.style.cssText = 'position:fixed;top:' + rect.top + 'px;left:' + rect.left + 'px;width:' + rect.width + 'px;pointer-events:none;';
+          ghost.removeAttribute('draggable');
+          // Inline style overrides everything — no rotation, no transition, exact position
+          ghost.style.cssText = [
+            'position:fixed',
+            'top:' + rect.top + 'px',
+            'left:' + rect.left + 'px',
+            'width:' + rect.width + 'px',
+            'margin:0',
+            'pointer-events:none',
+            'z-index:9999',
+            'opacity:0.85',
+            'transform:none',
+            'transition:none',
+            'box-shadow:0 8px 24px rgba(0,0,0,0.16)',
+            'border-radius:14px',
+          ].join(';') + ';';
           document.body.appendChild(ghost);
           ts.ghost = ghost;
           ts.offsetX = touch.clientX - rect.left;
@@ -416,8 +430,10 @@
 
         e.preventDefault();
         if (ts.ghost) {
-          ts.ghost.style.top  = (touch.clientY - ts.offsetY) + 'px';
-          ts.ghost.style.left = (touch.clientX - ts.offsetX) + 'px';
+          const newTop  = touch.clientY - ts.offsetY;
+          const newLeft = touch.clientX - ts.offsetX;
+          ts.ghost.style.top  = newTop  + 'px';
+          ts.ghost.style.left = newLeft + 'px';
         }
         document.querySelectorAll('[data-drop-zone]').forEach(dz => {
           const r = dz.getBoundingClientRect();
