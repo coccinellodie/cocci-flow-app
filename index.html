@@ -856,9 +856,9 @@
     const yDay  = ydayKey();
 
     const allDone   = tasks.filter(tk => tk.done).sort((a,b) => (b.doneDate||'').localeCompare(a.doneDate||''));
-    // Tâches faites aujourd'hui (fallback si doneDate null mais done=true)
-    const todayDone = allDone.filter(t => t.doneDate === today);
-    const histDone  = allDone.filter(t => t.doneDate !== today && t.doneDate);
+    // doneDate manquante ou nulle → considérée comme aujourd'hui (filet de sécurité)
+    const todayDone = allDone.filter(t => !t.doneDate || t.doneDate === today);
+    const histDone  = allDone.filter(t => t.doneDate && t.doneDate !== today);
     const total     = todayDone.length;
 
     // Regrouper historique par date (uniquement les dates valides)
@@ -1241,7 +1241,22 @@
       notionGet()
         .then(data => {
           if (Array.isArray(data)) {
-            setTasks(data);
+            // Merge Notion → local : on préserve les tâches cochées localement
+            // dont le PATCH Notion n'est peut-être pas encore arrivé (course condition)
+            setTasks(prev => {
+              const localByNId = {};
+              prev.forEach(t => { if (t.notionId) localByNId[t.notionId] = t; });
+              const merged = data.map(nt => {
+                const local = localByNId[nt.notionId];
+                // La version locale est faite mais Notion dit encore "À faire" → garde local
+                if (local && local.done && !nt.done) return local;
+                return nt;
+              });
+              // Tâches créées localement sans notionId encore
+              const notionIds = new Set(data.map(t => t.notionId).filter(Boolean));
+              const localOnly = prev.filter(t => !t.notionId && !notionIds.has(t.id));
+              return [...merged, ...localOnly];
+            });
             save(KEYS.tasks, data);
             // Récupère les définitions de catégories custom manquantes depuis les tâches Notion
             setCustomCats(prev => {
@@ -1341,13 +1356,15 @@
     }, [timer?.paused, timer?.taskId, !!timer]);
 
     const handleToggle = useCallback((id) => {
+      let updatedTask = null;
       setTasks(prev => {
         const task = prev.find(t=>t.id===id); if(!task) return prev;
         const newDone = !task.done;
-        const updated = {...task, done:newDone, doneDate:newDone?todayKey():null};
-        syncTask(updated);
-        return prev.map(t => t.id===id ? updated : t);
+        updatedTask = {...task, done:newDone, doneDate:newDone?todayKey():null};
+        return prev.map(t => t.id===id ? updatedTask : t);
       });
+      // syncTask en dehors du updater (side-effect interdite dans un updater React)
+      if (updatedTask) syncTask(updatedTask);
     }, [syncTask]);
 
     const handleSaveTask = useCallback((task) => {
