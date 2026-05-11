@@ -363,7 +363,7 @@
   // ── TASK CARD ──────────────────────────────────────
   function TaskCard({ task, allCats, onToggle, onMenu, showDate, dragRef, onDrop }) {
     const pKey = task.priority.toLowerCase();
-    const cats = (task.categories||[]).map(id => allCats.find(c=>c.id===id)).filter(Boolean);
+    const cats = (task.categories||[]).map(id => allCats.find(c=>c.id===id)).filter(c => c && c.label !== '(sans nom)');
     const cardRef  = useRef(null);
     const touchRef = useRef(null);
 
