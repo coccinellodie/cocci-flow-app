@@ -324,7 +324,13 @@
   // ── STORAGE ────────────────────────────────────────
   const load = (k,def) => { try { return JSON.parse(localStorage.getItem(k)) ?? def; } catch { return def; } };
   const save = (k,v)   => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
-  const KEYS = { tasks:'flow_v4', cats:'flow_custom_cats_v1', energy:'flow_energy_filter' };
+  const KEYS = {
+    tasks:       'flow_v4',
+    cats:        'flow_custom_cats_v1',
+    energy:      'flow_energy_filter',
+    doneLog:     'flow_done_log',     // { [notionId]: doneDate } — seule source de vérité pour les dates
+    pendingSync: 'flow_pending_sync', // tâches à re-syncer (syncs échouées)
+  };
 
   // ── NOTION SYNC ────────────────────────────────────────
   // ← Coller ici l'URL du Worker Cloudflare après déploiement
@@ -1275,31 +1281,58 @@
     useEffect(() => { save(KEYS.energy, energyFilter); }, [energyFilter]);
 
     // Merge Notion data → local state (préserve les coches locales pas encore confirmées)
-    const mergeNotionData = useCallback((data, setSyncing) => {
+    const mergeNotionData = useCallback((data) => {
+      // Journal de coches : seule source de vérité pour savoir QUAND cet appareil a coché une tâche
+      const doneLog = load(KEYS.doneLog, {});
+      const toResync = []; // tâches que local sait cochées mais Notion pas encore → re-PATCH
+
       setTasks(prev => {
         const localByNId = {};
         prev.forEach(t => { if (t.notionId) localByNId[t.notionId] = t; });
+
         const merged = data.map(nt => {
           const local = localByNId[nt.notionId];
-          // Race condition : local coché, Notion pas encore → garde local
-          if (local && local.done && !nt.done) return local;
-          if (nt.done && !nt.doneDate) {
-            if (local && local.done) {
-              // Tâche déjà connue comme faite localement → préserve le doneDate local
-              // (peut être null pour les vieilles tâches → elles restent dans "Avant", c'est correct)
-              return { ...nt, doneDate: local.doneDate || null };
-            }
-            // local.done=false OU tâche jamais vue sur cet appareil
-            // → c'est un changement récent depuis un autre appareil → assigne aujourd'hui
-            return { ...nt, doneDate: todayKey() };
+
+          // Race condition : local coché, Notion pas encore → garde local ET planifie re-sync
+          if (local && local.done && !nt.done) {
+            toResync.push(local);
+            return local;
           }
+
+          if (nt.done) {
+            // doneDate vient UNIQUEMENT du journal de coches de cet appareil
+            // Si pas d'entrée → tâche cochée sur un autre appareil → doneDate null (→ "Avant")
+            // Mais la tâche est bien done, donc disparaît du Planning ✓
+            const doneDate = doneLog[nt.notionId] || null;
+            return { ...nt, doneDate };
+          }
+
+          // Notion dit undone mais journal local dit done → re-sync
+          if (!nt.done && doneLog[nt.notionId] && local && local.done) {
+            toResync.push(local);
+            return local;
+          }
+
           return nt;
         });
+
         const notionIds = new Set(data.map(t => t.notionId).filter(Boolean));
         const localOnly = prev.filter(t => !t.notionId && !notionIds.has(t.id));
         return [...merged, ...localOnly];
       });
+
       save(KEYS.tasks, data);
+
+      // Re-PATCH les tâches que Notion n'a pas encore (syncs ratées)
+      if (PROXY_URL && toResync.length) {
+        toResync.forEach(t => {
+          if (t.notionId) notionUpdate(t.notionId, t).catch(() => {
+            // Ajoute à la file de retry si ça échoue encore
+            const pending = load(KEYS.pendingSync, []);
+            if (!pending.some(p => p.id === t.id)) { pending.push(t); save(KEYS.pendingSync, pending); }
+          });
+        });
+      }
     }, []);
 
     // Chargement initial depuis Notion
@@ -1357,6 +1390,20 @@
         const now = Date.now();
         if (now - lastRefresh < MIN_INTERVAL_MS) return;
         lastRefresh = now;
+
+        // Retry des syncs en échec avant de recharger
+        const pending = load(KEYS.pendingSync, []);
+        if (pending.length) {
+          pending.forEach(t => {
+            if (t.notionId) notionUpdate(t.notionId, t)
+              .then(() => {
+                const p = load(KEYS.pendingSync, []);
+                save(KEYS.pendingSync, p.filter(x => x.id !== t.id));
+              })
+              .catch(() => {});
+          });
+        }
+
         setSyncing(true);
         notionGet()
           .then(data => { if (Array.isArray(data)) mergeNotionData(data); })
@@ -1400,7 +1447,17 @@
             ));
           }
         }
-      } catch(e) { /* offline — localStorage garde la mise à jour */ }
+        // Succès : retire de la file de retry si elle y était
+        const pending = load(KEYS.pendingSync, []);
+        const filtered = pending.filter(t => t.id !== task.id);
+        if (filtered.length !== pending.length) save(KEYS.pendingSync, filtered);
+      } catch(e) {
+        // Échec réseau : met en file de retry pour le prochain refresh
+        const pending = load(KEYS.pendingSync, []);
+        const idx = pending.findIndex(t => t.id === task.id);
+        if (idx >= 0) pending[idx] = taskToSync; else pending.push(taskToSync);
+        save(KEYS.pendingSync, pending);
+      }
     }, [customCats]);
 
     // Auto-escalade : tâches non faites dont la date est passée → backlog Haute priorité + sync Notion
@@ -1446,8 +1503,16 @@
         updatedTask = {...task, done:newDone, doneDate:newDone?todayKey():null};
         return prev.map(t => t.id===id ? updatedTask : t);
       });
-      // syncTask en dehors du updater (side-effect interdite dans un updater React)
-      if (updatedTask) syncTask(updatedTask);
+      if (updatedTask) {
+        // Mettre à jour le journal de coches (source de vérité pour doneDate)
+        if (updatedTask.notionId) {
+          const log = load(KEYS.doneLog, {});
+          if (updatedTask.done) log[updatedTask.notionId] = updatedTask.doneDate;
+          else delete log[updatedTask.notionId];
+          save(KEYS.doneLog, log);
+        }
+        syncTask(updatedTask);
+      }
     }, [syncTask]);
 
     const handleSaveTask = useCallback((task) => {
