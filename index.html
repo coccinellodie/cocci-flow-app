@@ -1299,12 +1299,14 @@
             return local;
           }
 
+          // Champs que Notion ne stocke pas → toujours préservés depuis local
+          const localOnlyFields = local ? {
+            energy: nt.energy || local.energy || null,
+          } : {};
+
           if (nt.done) {
-            // doneDate vient UNIQUEMENT du journal de coches de cet appareil
-            // Si pas d'entrée → tâche cochée sur un autre appareil → doneDate null (→ "Avant")
-            // Mais la tâche est bien done, donc disparaît du Planning ✓
             const doneDate = doneLog[nt.notionId] || null;
-            return { ...nt, doneDate };
+            return { ...nt, ...localOnlyFields, doneDate };
           }
 
           // Notion dit undone mais journal local dit done → re-sync
@@ -1313,7 +1315,7 @@
             return local;
           }
 
-          return nt;
+          return { ...nt, ...localOnlyFields };
         });
 
         const notionIds = new Set(data.map(t => t.notionId).filter(Boolean));
