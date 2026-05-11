@@ -318,6 +318,9 @@
     return DAY_FR[d.getDay()].toLowerCase();
   };
 
+  // ── DEVICE DETECTION ───────────────────────────────
+  const IS_MOBILE = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
   // ── STORAGE ────────────────────────────────────────
   const load = (k,def) => { try { return JSON.parse(localStorage.getItem(k)) ?? def; } catch { return def; } };
   const save = (k,v)   => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
@@ -1132,9 +1135,9 @@
             <label className="form-label">Titre</label>
             <div className="title-row">
               <input className="form-input" placeholder="Qu'est-ce à faire ?" value={title} onChange={e=>setTitle(e.target.value)} onKeyDown={e=>e.key==='Enter'&&handleSave()} autoFocus={!initial}/>
-              <button type="button" className={`voice-inline-btn ${listening?'listening':''}`} onClick={handleMic}>{listening?'🎙️':'🎤'}</button>
+              {IS_MOBILE && <button type="button" className={`voice-inline-btn ${listening?'listening':''}`} onClick={handleMic}>{listening?'🎙️':'🎤'}</button>}
             </div>
-            {listening && <div style={{fontSize:12,color:'var(--rose)',marginTop:6,textAlign:'center'}}>J'écoute…</div>}
+            {IS_MOBILE && listening && <div style={{fontSize:12,color:'var(--rose)',marginTop:6,textAlign:'center'}}>J'écoute…</div>}
           </div>
           <div className="form-group">
             <label className="form-label">Priorité</label>
@@ -1537,7 +1540,7 @@
           />
         )}
 
-        {voiceOn && (
+        {IS_MOBILE && voiceOn && (
           <div className="listen-overlay">
             <div className="listen-ring">🎙️</div>
             <div className="listen-text">J'écoute…</div>
@@ -1600,7 +1603,7 @@
         </div>
 
         <div className="fab-area">
-          {voiceOk && (
+          {IS_MOBILE && voiceOk && (
             <button className={`fab-voice ${voiceOn?'listening':''}`} onClick={handleVoiceFab}>
               {voiceOn?'🎙️':'🎤'}
               <span className="fab-voice-label">Parler</span>
