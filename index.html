@@ -540,6 +540,7 @@
             <span className={`task-chip chip-${pKey}`}>{task.priority}</span>
             {showDate && task.scheduledDate && <span className="chip-sched">📅 {fmtDateLabel(task.scheduledDate)}</span>}
             {cats.map(c => <span key={c.id} className="chip-cat">{c.icon} {c.label}</span>)}
+            {task.notes && task.notes.trim() && <span title={task.notes} style={{fontSize:13,opacity:0.55,lineHeight:1}}>📝</span>}
           </div>
         </div>
         <button className="task-menu-btn" onClick={() => onMenu(task)}>···</button>
