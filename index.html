@@ -824,10 +824,24 @@
     );
   }
 
+  // ── FUZZY SEARCH ───────────────────────────────────
+  const normalize = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+  const fuzzyMatch = (query, text) => {
+    const q = normalize(query), t = normalize(text);
+    if (!q) return true;
+    if (t.includes(q)) return true;
+    // Correspondance floue : tous les caractères de query apparaissent dans l'ordre dans text
+    let qi = 0;
+    for (let i = 0; i < t.length && qi < q.length; i++) { if (t[i]===q[qi]) qi++; }
+    return qi === q.length;
+  };
+
   // ── BACKLOG VIEW ───────────────────────────────────
   function BacklogView({ tasks, allCats, onToggle, onMenu, dragRef, onDrop, energyFilter }) {
     const [catFilter,   setCatFilter]   = useState(null);
     const [openPending, setOpenPending] = useState(true);
+    const [search,      setSearch]      = useState('');
+    const searchRef = useRef(null);
 
     // Toutes les tâches non faites, triées du plus récent au plus ancien
     const pending  = tasks.filter(tk => !tk.done)
@@ -837,13 +851,33 @@
     const applyFilter = (list) => {
       let out = catFilter ? list.filter(t => (t.categories||[]).includes(catFilter)) : list;
       if (energyFilter) out = out.filter(t => t.energy === energyFilter);
+      if (search.trim()) out = out.filter(t => fuzzyMatch(search.trim(), t.title));
       return out;
     };
 
+    const isSearching = search.trim().length > 0;
+
     return (
       <div className="content">
-        {/* Filtre catégories */}
-        {usedCats.length > 0 && (
+        {/* Barre de recherche */}
+        <div style={{position:'relative',marginBottom:8}}>
+          <span style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',fontSize:15,color:'var(--muted)',pointerEvents:'none'}}>🔍</span>
+          <input
+            ref={searchRef}
+            className="form-input"
+            placeholder="Chercher une tâche…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{paddingLeft:36,paddingRight:search?36:12,borderRadius:14}}
+          />
+          {search && (
+            <button onClick={() => { setSearch(''); searchRef.current && searchRef.current.focus(); }}
+              style={{position:'absolute',right:10,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',fontSize:16,color:'var(--muted)',cursor:'pointer',padding:'2px 4px',lineHeight:1}}>✕</button>
+          )}
+        </div>
+
+        {/* Filtre catégories (masqué pendant la recherche) */}
+        {!isSearching && usedCats.length > 0 && (
           <div className="cat-filter-row">
             <button className={`cat-filter-chip ${!catFilter?'active':''}`} onClick={() => setCatFilter(null)}>Toutes</button>
             {usedCats.map(c => (
@@ -853,8 +887,25 @@
           </div>
         )}
 
-        {/* Section "À faire" dépliable */}
-        {pending.length > 0 && (
+        {/* Résultats de recherche — liste à plat */}
+        {isSearching && (() => {
+          const results = applyFilter(pending);
+          return results.length > 0 ? (
+            <div>
+              <div style={{fontSize:11,fontWeight:500,textTransform:'uppercase',letterSpacing:'0.12em',color:'var(--muted)',padding:'8px 0 6px'}}>
+                {results.length} résultat{results.length>1?'s':''}
+              </div>
+              {results.map(t => <TaskCard key={t.id} task={t} allCats={allCats} onToggle={onToggle} onMenu={onMenu} showDate dragRef={dragRef} onDrop={onDrop} />)}
+            </div>
+          ) : (
+            <div className="empty" style={{paddingTop:24}}>
+              <div className="empty-text">Aucune tâche trouvée pour "{search}"</div>
+            </div>
+          );
+        })()}
+
+        {/* Vue normale par priorité */}
+        {!isSearching && pending.length > 0 && (
           <div>
             <div
               onClick={() => setOpenPending(o => !o)}
@@ -871,7 +922,7 @@
           </div>
         )}
 
-        {pending.length === 0 && (
+        {!isSearching && pending.length === 0 && (
           <div className="empty" style={{paddingTop:32}}>
             <div className="empty-icon">🌿</div>
             <div className="empty-text">Tout est fait !<br/>Va dans "Fait" pour savourer ✓</div>
