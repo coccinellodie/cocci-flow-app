@@ -1284,12 +1284,13 @@
           // Race condition : local coché, Notion pas encore → garde local
           if (local && local.done && !nt.done) return local;
           if (nt.done && !nt.doneDate) {
-            if (local && local.done && local.doneDate) {
-              // Les deux d'accord, local a une date précise → la préserve
-              return { ...nt, doneDate: local.doneDate };
+            if (local && local.done) {
+              // Tâche déjà connue comme faite localement → préserve le doneDate local
+              // (peut être null pour les vieilles tâches → elles restent dans "Avant", c'est correct)
+              return { ...nt, doneDate: local.doneDate || null };
             }
-            // Notion dit done mais local ne le savait pas (autre appareil) OU tâche inconnue
-            // → on assigne aujourd'hui pour qu'elle apparaisse dans "Fait"
+            // local.done=false OU tâche jamais vue sur cet appareil
+            // → c'est un changement récent depuis un autre appareil → assigne aujourd'hui
             return { ...nt, doneDate: todayKey() };
           }
           return nt;
