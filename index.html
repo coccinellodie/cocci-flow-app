@@ -127,6 +127,13 @@
     .chip-basse   { background: rgba(107,153,128,0.15); color: #4A7A62; }
     .chip-cat { font-size: 11px; padding: 2px 8px; border-radius: 8px; background: rgba(36,61,31,0.08); color: var(--green-dk); white-space: nowrap; }
     .chip-sched { font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 8px; background: var(--green-dk); color: #fff; white-space: nowrap; letter-spacing: 0.01em; }
+    .chip-energy { font-size: 13px; line-height: 1; opacity: 0.7; }
+    .energy-strip { display: flex; gap: 8px; align-items: center; padding: 10px 16px 6px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+    .energy-strip::-webkit-scrollbar { display: none; }
+    .energy-btn { display: flex; align-items: center; gap: 5px; padding: 7px 13px; border-radius: 20px; border: 1.5px solid var(--border); background: var(--card); font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--muted); cursor: pointer; white-space: nowrap; transition: all 0.15s; -webkit-tap-highlight-color: transparent; flex-shrink: 0; }
+    .energy-btn.active { background: var(--rose); border-color: var(--rose); color: white; font-weight: 600; }
+    .energy-btn.reset { font-size: 12px; }
+    .energy-active-hint { font-size: 11px; color: var(--rose); font-weight: 500; padding: 0 16px 6px; }
     .task-card.is-scheduled { border-color: rgba(36,61,31,0.22); background: rgba(36,61,31,0.03); }
     .task-menu-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 18px; padding: 2px 6px; flex-shrink: 0; line-height: 1; letter-spacing: 1px; -webkit-tap-highlight-color: transparent; opacity: 0.5; transition: opacity 0.2s; }
     .task-menu-btn:hover { opacity: 1; }
@@ -254,6 +261,12 @@
     { id: 'Flexible',   icon: '✦',   label: 'Flexible',   color: '#8BA288', bg: 'rgba(139,162,136,0.12)' },
   ];
   const PRIORITIES  = ['Haute', 'Moyenne', 'Basse'];
+  const ENERGY_LEVELS = [
+    { id: 'feu',   icon: '🔥', label: 'Feu',   desc: 'Pleine énergie, esprit acéré. Séances, créations, décisions.' },
+    { id: 'verte', icon: '🌿', label: 'Verte',  desc: 'Bon flow, concentrée. Suivi, organisation, réponses.' },
+    { id: 'douce', icon: '🌊', label: 'Douce',  desc: 'Fatiguée ou chargée. Tâches répétitives, sans enjeu créatif.' },
+    { id: 'cocon', icon: '🌚', label: 'Cocon',  desc: 'Bas fond, règles. Uniquement l'ultra-automatique.' },
+  ];
   const DURATIONS   = [15, 30, 45, 60, 90, 120];
   const PRIO_COLORS = { Haute: '#B05C4B', Moyenne: '#E8AFA8', Basse: '#6B9980' };
   const DEFAULT_CATS = [
@@ -308,7 +321,7 @@
   // ── STORAGE ────────────────────────────────────────
   const load = (k,def) => { try { return JSON.parse(localStorage.getItem(k)) ?? def; } catch { return def; } };
   const save = (k,v)   => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
-  const KEYS = { tasks:'flow_v4', cats:'flow_custom_cats_v1' };
+  const KEYS = { tasks:'flow_v4', cats:'flow_custom_cats_v1', energy:'flow_energy_filter' };
 
   // ── NOTION SYNC ────────────────────────────────────────
   // ← Coller ici l'URL du Worker Cloudflare après déploiement
@@ -338,6 +351,7 @@
     ...t,
     categories: Array.isArray(t.categories) ? t.categories : (t.category ? [t.category] : []),
     scheduledDate: t.scheduledDate ?? null,
+    energy: t.energy ?? null,
   }));
 
   // ── VOICE ──────────────────────────────────────────
@@ -540,6 +554,7 @@
             <span className={`task-chip chip-${pKey}`}>{task.priority}</span>
             {showDate && task.scheduledDate && <span className="chip-sched">📅 {fmtDateLabel(task.scheduledDate)}</span>}
             {cats.map(c => <span key={c.id} className="chip-cat">{c.icon} {c.label}</span>)}
+            {task.energy && <span className="chip-energy" title={(ENERGY_LEVELS.find(e=>e.id===task.energy)||{}).label||''}>{(ENERGY_LEVELS.find(e=>e.id===task.energy)||{}).icon||''}</span>}
             {task.notes && task.notes.trim() && <span title={task.notes} style={{fontSize:13,opacity:0.55,lineHeight:1}}>📝</span>}
           </div>
         </div>
@@ -731,10 +746,11 @@
   }
 
   // ── DAY VIEW ───────────────────────────────────────
-  function DayView({ tasks, allCats, onToggle, onMenu, onAddToSlot, selectedDate, dragRef, onDrop }) {
+  function DayView({ tasks, allCats, onToggle, onMenu, onAddToSlot, selectedDate, dragRef, onDrop, energyFilter }) {
     const t = selectedDate;
     const scheduled = tasks.filter(tk => tk.scheduledDate===t)
       .sort((a, b) => (b.createdAt||'').localeCompare(a.createdAt||''));
+    const filterEnergy = (list) => energyFilter ? list.filter(tk => tk.energy === energyFilter) : list;
     const hasAny = scheduled.length > 0;
     return (
       <div className="content">
@@ -746,7 +762,7 @@
         ) : (
           SLOTS.map(slot => (
             <SlotSection key={slot.id} slot={slot} allCats={allCats}
-              tasks={scheduled.filter(t => t.slot===slot.id)}
+              tasks={filterEnergy(scheduled.filter(tk => tk.slot===slot.id))}
               onToggle={onToggle} onMenu={onMenu} onAddToSlot={onAddToSlot}
               dragRef={dragRef} onDrop={onDrop}
             />
@@ -798,7 +814,7 @@
   }
 
   // ── BACKLOG VIEW ───────────────────────────────────
-  function BacklogView({ tasks, allCats, onToggle, onMenu, dragRef, onDrop }) {
+  function BacklogView({ tasks, allCats, onToggle, onMenu, dragRef, onDrop, energyFilter }) {
     const [catFilter,   setCatFilter]   = useState(null);
     const [openPending, setOpenPending] = useState(true);
 
@@ -807,7 +823,11 @@
       .sort((a, b) => (b.createdAt||'').localeCompare(a.createdAt||''));
     const usedCats = allCats.filter(c => pending.some(t => (t.categories||[]).includes(c.id)));
 
-    const applyFilter = (list) => catFilter ? list.filter(t => (t.categories||[]).includes(catFilter)) : list;
+    const applyFilter = (list) => {
+      let out = catFilter ? list.filter(t => (t.categories||[]).includes(catFilter)) : list;
+      if (energyFilter) out = out.filter(t => t.energy === energyFilter);
+      return out;
+    };
 
     return (
       <div className="content">
@@ -1059,6 +1079,7 @@
     const [duration,   setDuration]   = useState(initial?.duration || 30);
     const [categories, setCategories] = useState(initial?.categories || []);
     const [notes,      setNotes]      = useState(initial?.notes || '');
+    const [energy,     setEnergy]     = useState(initial?.energy || null);
     const [customDur,  setCustomDur]  = useState('');
     const [showDurInput, setShowDurInput] = useState(() => initial?.duration && !DURATIONS.includes(initial.duration));
     const [showNewCat, setShowNewCat] = useState(false);
@@ -1095,7 +1116,7 @@
       if (!title.trim()) return;
       stop(); // arrêter le micro s'il est encore actif
       const base = isEdit ? { ...initial } : { id: Date.now().toString(36)+Math.random().toString(36).slice(2), done: false, doneDate: null, createdAt: new Date().toISOString(), scheduledDate: showSched ? (schedDate || defaultDate || null) : null };
-      onSave({ ...base, title: title.trim(), priority, slot, duration, categories, notes: notes.trim(), scheduledDate: showSched ? (schedDate || defaultDate || null) : (isEdit ? initial.scheduledDate : null) });
+      onSave({ ...base, title: title.trim(), priority, slot, duration, categories, notes: notes.trim(), energy: energy || null, scheduledDate: showSched ? (schedDate || defaultDate || null) : (isEdit ? initial.scheduledDate : null) });
       onClose();
     };
 
@@ -1169,6 +1190,19 @@
             )}
           </div>
           <div className="form-group">
+            <label className="form-label">Coût énergétique</label>
+            <div className="chips-row" style={{flexWrap:'wrap'}}>
+              {ENERGY_LEVELS.map(e => (
+                <button key={e.id}
+                  className={`chip-sel ${energy===e.id?'sel':''}`}
+                  onClick={() => setEnergy(energy===e.id ? null : e.id)}
+                  title={e.desc}
+                >{e.icon} {e.label}</button>
+              ))}
+            </div>
+            {energy && <div style={{fontSize:11,color:'var(--muted)',marginTop:6}}>{(ENERGY_LEVELS.find(e2=>e2.id===energy)||{}).desc}</div>}
+          </div>
+          <div className="form-group">
             <label className="form-label">Notes (optionnel)</label>
             <textarea className="form-input form-textarea" placeholder="Quelques détails…" value={notes} onChange={e=>setNotes(e.target.value)}/>
           </div>
@@ -1239,7 +1273,8 @@
     const [defDate,    setDefDate]    = useState(null);
     const [prefill,    setPrefill]    = useState('');
     const [timer,      setTimer]      = useState(null);
-    const [syncing,    setSyncing]    = useState(false);
+    const [syncing,      setSyncing]      = useState(false);
+    const [energyFilter, setEnergyFilter] = useState(() => load(KEYS.energy, null));
     const timerRef = useRef(null);
     const dragRef   = useRef(null);
     const { listening: voiceOn, supported: voiceOk, start: voiceStart, stop: voiceStop } = useVoice();
@@ -1249,6 +1284,7 @@
 
     useEffect(() => { save(KEYS.tasks, tasks); }, [tasks]);
     useEffect(() => { save(KEYS.cats, customCats); }, [customCats]);
+    useEffect(() => { save(KEYS.energy, energyFilter); }, [energyFilter]);
 
     // Merge Notion data → local state (préserve les coches locales pas encore confirmées)
     const mergeNotionData = useCallback((data, setSyncing) => {
@@ -1509,8 +1545,31 @@
           </div>
         )}
 
-        {tab==='day'     && <DayView tasks={tasks} allCats={allCats} onToggle={handleToggle} onMenu={setCtxTask} onAddToSlot={s=>openAdd(s,selectedDate)} selectedDate={selectedDate} dragRef={dragRef} onDrop={handleMove} />}
-        {tab==='backlog' && <BacklogView tasks={tasks} allCats={allCats} onToggle={handleToggle} onMenu={setCtxTask} dragRef={dragRef} onDrop={handleMove} />}
+        {/* Strip énergie du moment — visible sur Planning et À faire */}
+        {(tab==='day' || tab==='backlog') && (
+          <div>
+            <div className="energy-strip">
+              {ENERGY_LEVELS.map(e => (
+                <button key={e.id}
+                  className={`energy-btn ${energyFilter===e.id?'active':''}`}
+                  onClick={() => setEnergyFilter(energyFilter===e.id ? null : e.id)}
+                  title={e.desc}
+                >{e.icon} {e.label}</button>
+              ))}
+              {energyFilter && (
+                <button className="energy-btn reset" onClick={() => setEnergyFilter(null)}>✕ Tout</button>
+              )}
+            </div>
+            {energyFilter && (
+              <div className="energy-active-hint">
+                Affichage filtré · {(ENERGY_LEVELS.find(e=>e.id===energyFilter)||{}).desc}
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab==='day'     && <DayView tasks={tasks} allCats={allCats} onToggle={handleToggle} onMenu={setCtxTask} onAddToSlot={s=>openAdd(s,selectedDate)} selectedDate={selectedDate} dragRef={dragRef} onDrop={handleMove} energyFilter={energyFilter} />}
+        {tab==='backlog' && <BacklogView tasks={tasks} allCats={allCats} onToggle={handleToggle} onMenu={setCtxTask} dragRef={dragRef} onDrop={handleMove} energyFilter={energyFilter} />}
         {tab==='fait'    && <DoneView tasks={tasks} allCats={allCats} onToggle={handleToggle} onMenu={setCtxTask} />}
 
         <div className="tabs">
