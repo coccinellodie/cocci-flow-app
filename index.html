@@ -693,7 +693,7 @@
     );
   }
 
-  function CalendarStrip({ selectedDate, onSelectDate, tasks }) {
+  function CalendarStrip({ selectedDate, onSelectDate, tasks, onSync, syncing }) {
     const [weekOffset,    setWeekOffset]    = useState(0);
     const [showMonthView, setShowMonthView] = useState(false);
 
@@ -731,6 +731,9 @@
                 <button className="cal-nav-btn" onClick={() => setWeekOffset(o=>o-1)}>‹</button>
                 {weekOffset !== 0 && <button className="cal-nav-btn" style={{fontSize:11,width:'auto',padding:'0 10px',borderRadius:10}} onClick={() => { setWeekOffset(0); onSelectDate(todayKey()); }}>auj.</button>}
                 <button className="cal-nav-btn" onClick={() => setWeekOffset(o=>o+1)}>›</button>
+                <button onClick={onSync} disabled={syncing} title="Synchroniser" style={{background:'none',border:'none',cursor:syncing?'default':'pointer',padding:'4px 6px',borderRadius:8,color:'var(--muted)',fontSize:18,lineHeight:1,opacity:syncing?1:0.5,WebkitTapHighlightColor:'transparent'}}>
+                  <span style={{display:'inline-block',animation:syncing?'spin 1s linear infinite':'none'}}>↻</span>
+                </button>
               </div>
             </div>
           </div>
@@ -1434,50 +1437,53 @@
         .finally(() => setSyncing(false));
     }, []);
 
-    // Rafraîchissement automatique : visibilité + toutes les 5 minutes en arrière-plan
-    // → permet de voir les tâches cochées sur un autre appareil même si l'onglet reste ouvert
+    // forceRefresh : sync manuelle ou automatique depuis Notion
+    const lastRefreshRef = useRef(0);
+    const forceRefresh = useCallback((skipThrottle = false) => {
+      if (!PROXY_URL) return;
+      const now = Date.now();
+      const MIN_MS = 20000; // anti-spam 20s
+      if (!skipThrottle && now - lastRefreshRef.current < MIN_MS) return;
+      lastRefreshRef.current = now;
+
+      // Retry des syncs en échec
+      const pending = load(KEYS.pendingSync, []);
+      if (pending.length) {
+        pending.forEach(t => {
+          if (t.notionId) notionUpdate(t.notionId, t)
+            .then(() => { const p = load(KEYS.pendingSync, []); save(KEYS.pendingSync, p.filter(x => x.id !== t.id)); })
+            .catch(() => {});
+        });
+      }
+
+      setSyncing(true);
+      notionGet()
+        .then(data => { if (Array.isArray(data)) mergeNotionData(data); })
+        .catch(() => {})
+        .finally(() => setSyncing(false));
+    }, [mergeNotionData]);
+
+    // Rafraîchissement automatique : visibilité + focus + intervalle 2 min
     useEffect(() => {
       if (!PROXY_URL) return;
-      let lastRefresh = Date.now();
-      const MIN_INTERVAL_MS = 30000; // anti-spam : pas plus d'1 refresh toutes les 30s
 
-      const doRefresh = () => {
-        const now = Date.now();
-        if (now - lastRefresh < MIN_INTERVAL_MS) return;
-        lastRefresh = now;
+      // visibilitychange : onglet revient au premier plan
+      const onVisible = () => { if (document.visibilityState === 'visible') forceRefresh(); };
+      // focus : fenêtre reprend le focus (iOS PWA, retour depuis autre app)
+      const onFocus = () => forceRefresh();
 
-        // Retry des syncs en échec avant de recharger
-        const pending = load(KEYS.pendingSync, []);
-        if (pending.length) {
-          pending.forEach(t => {
-            if (t.notionId) notionUpdate(t.notionId, t)
-              .then(() => {
-                const p = load(KEYS.pendingSync, []);
-                save(KEYS.pendingSync, p.filter(x => x.id !== t.id));
-              })
-              .catch(() => {});
-          });
-        }
-
-        setSyncing(true);
-        notionGet()
-          .then(data => { if (Array.isArray(data)) mergeNotionData(data); })
-          .catch(() => {})
-          .finally(() => setSyncing(false));
-      };
-
-      // Refresh quand l'app reprend le focus (retour sur onglet, déverrouillage téléphone)
-      const onVisible = () => { if (document.visibilityState === 'visible') doRefresh(); };
       document.addEventListener('visibilitychange', onVisible);
+      window.addEventListener('focus', onFocus);
 
-      // Refresh périodique toutes les 5 minutes (pour garder l'ordi à jour même onglet actif)
-      const interval = setInterval(doRefresh, 5 * 60 * 1000);
+      // Intervalle de 2 minutes (réduit de 5 pour plus de réactivité)
+      const interval = setInterval(() => forceRefresh(), 2 * 60 * 1000);
 
       return () => {
         document.removeEventListener('visibilitychange', onVisible);
+        window.removeEventListener('focus', onFocus);
         clearInterval(interval);
       };
-    }, [mergeNotionData]);
+    }, [forceRefresh]);
 
     // Sync une tâche vers Notion (create ou update)
     // Inclut _catDefs pour que les catégories custom soient lisibles dans Notion
@@ -1640,7 +1646,7 @@
           />
         )}
 
-        {tab==='day' && <CalendarStrip selectedDate={selectedDate} onSelectDate={setSelectedDate} tasks={tasks} />}
+        {tab==='day' && <CalendarStrip selectedDate={selectedDate} onSelectDate={setSelectedDate} tasks={tasks} onSync={() => forceRefresh(true)} syncing={syncing} />}
         {(tab==='backlog' || tab==='fait') && (
           <div className="header">
             <div className="header-row">
@@ -1648,11 +1654,14 @@
                 <div className="day-name">{tab==='fait' ? 'Fait' : 'Mes tâches'}</div>
                 <div className="date-sub">{getDayName()} {getDateStr()}</div>
               </div>
-              {syncing && (
-                <div style={{fontSize:11,color:'var(--muted)',display:'flex',alignItems:'center',gap:5,marginTop:8}}>
-                  <span style={{display:'inline-block',animation:'spin 1s linear infinite'}}>↻</span> sync…
-                </div>
-              )}
+              <button
+                onClick={() => forceRefresh(true)}
+                disabled={syncing}
+                title="Synchroniser avec Notion"
+                style={{background:'none',border:'none',cursor:syncing?'default':'pointer',padding:'4px 6px',borderRadius:8,color:'var(--muted)',fontSize:18,lineHeight:1,opacity:syncing?1:0.5,transition:'opacity 0.2s',WebkitTapHighlightColor:'transparent'}}
+              >
+                <span style={{display:'inline-block',animation:syncing?'spin 1s linear infinite':'none'}}>↻</span>
+              </button>
             </div>
           </div>
         )}
