@@ -1293,9 +1293,17 @@
         prev.forEach(t => { if (t.notionId) localByNId[t.notionId] = t; });
         const merged = data.map(nt => {
           const local = localByNId[nt.notionId];
-          // La version locale est cochée mais Notion dit encore "À faire" → garde local
+          // Local coché, Notion pas encore → race condition, garde local
           if (local && local.done && !nt.done) return local;
-          // Si la version Notion vient d'être cochée (done=true) et a une doneDate → la prend
+          // Notion coché, local pas encore → changement depuis un autre appareil
+          if (nt.done && local && !local.done) {
+            // Notion ne stocke pas doneDate → on met aujourd'hui pour qu'elle apparaisse dans "Fait"
+            return { ...nt, doneDate: nt.doneDate || todayKey() };
+          }
+          // Les deux cochés : préserve le doneDate local s'il est plus précis
+          if (nt.done && local && local.done && !nt.doneDate && local.doneDate) {
+            return { ...nt, doneDate: local.doneDate };
+          }
           return nt;
         });
         const notionIds = new Set(data.map(t => t.notionId).filter(Boolean));
