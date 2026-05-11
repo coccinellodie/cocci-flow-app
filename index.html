@@ -1097,15 +1097,7 @@
       { key: addDays(3),  label: 'Dans 3 j.' },
       { key: addDays(7),  label: 'Dans 1 sem.' },
     ];
-    const { listening, start, stop }  = useVoice();
-
     const toggleCat = (id) => setCategories(p => p.includes(id) ? p.filter(c=>c!==id) : [...p,id]);
-
-    const handleMic = () => {
-      if (listening) { stop(); return; }
-      const ok = start(text => setTitle(t => t ? t+' '+text : text));
-      if (!ok) alert("Reconnaissance vocale non disponible. Essaie Chrome sur desktop ou Android.");
-    };
 
     const handleAddCat = () => {
       if (!newLabel.trim()) return;
@@ -1117,14 +1109,10 @@
 
     const handleSave = () => {
       if (!title.trim()) return;
-      stop(); // arrêter le micro s'il est encore actif
       const base = isEdit ? { ...initial } : { id: Date.now().toString(36)+Math.random().toString(36).slice(2), done: false, doneDate: null, createdAt: new Date().toISOString(), scheduledDate: showSched ? (schedDate || defaultDate || null) : null };
       onSave({ ...base, title: title.trim(), priority, slot, duration, categories, notes: notes.trim(), energy: energy || null, scheduledDate: showSched ? (schedDate || defaultDate || null) : (isEdit ? initial.scheduledDate : null) });
       onClose();
     };
-
-    // Stopper le micro si le formulaire se ferme sans sauvegarder
-    useEffect(() => () => stop(), []);
 
     return (
       <div className="sheet-overlay" onClick={e => e.target===e.currentTarget && onClose()}>
@@ -1135,9 +1123,7 @@
             <label className="form-label">Titre</label>
             <div className="title-row">
               <input className="form-input" placeholder="Qu'est-ce à faire ?" value={title} onChange={e=>setTitle(e.target.value)} onKeyDown={e=>e.key==='Enter'&&handleSave()} autoFocus={!initial}/>
-              {IS_MOBILE && <button type="button" className={`voice-inline-btn ${listening?'listening':''}`} onClick={handleMic}>{listening?'🎙️':'🎤'}</button>}
             </div>
-            {IS_MOBILE && listening && <div style={{fontSize:12,color:'var(--rose)',marginTop:6,textAlign:'center'}}>J'écoute…</div>}
           </div>
           <div className="form-group">
             <label className="form-label">Priorité</label>
@@ -1280,7 +1266,6 @@
     const [energyFilter, setEnergyFilter] = useState(() => load(KEYS.energy, null));
     const timerRef = useRef(null);
     const dragRef   = useRef(null);
-    const { listening: voiceOn, supported: voiceOk, start: voiceStart, stop: voiceStop } = useVoice();
 
     const allCats      = [...DEFAULT_CATS, ...customCats];
     const customCatIds = customCats.map(c=>c.id);
@@ -1296,16 +1281,16 @@
         prev.forEach(t => { if (t.notionId) localByNId[t.notionId] = t; });
         const merged = data.map(nt => {
           const local = localByNId[nt.notionId];
-          // Local coché, Notion pas encore → race condition, garde local
+          // Race condition : local coché, Notion pas encore → garde local
           if (local && local.done && !nt.done) return local;
-          // Notion coché, local pas encore → changement depuis un autre appareil
-          if (nt.done && local && !local.done) {
-            // Notion ne stocke pas doneDate → on met aujourd'hui pour qu'elle apparaisse dans "Fait"
-            return { ...nt, doneDate: nt.doneDate || todayKey() };
-          }
-          // Les deux cochés : préserve le doneDate local s'il est plus précis
-          if (nt.done && local && local.done && !nt.doneDate && local.doneDate) {
-            return { ...nt, doneDate: local.doneDate };
+          if (nt.done && !nt.doneDate) {
+            if (local && local.done && local.doneDate) {
+              // Les deux d'accord, local a une date précise → la préserve
+              return { ...nt, doneDate: local.doneDate };
+            }
+            // Notion dit done mais local ne le savait pas (autre appareil) OU tâche inconnue
+            // → on assigne aujourd'hui pour qu'elle apparaisse dans "Fait"
+            return { ...nt, doneDate: todayKey() };
           }
           return nt;
         });
@@ -1524,12 +1509,6 @@
 
     const openAdd = (slot=null, date=null) => { setDefSlot(slot); setDefDate(date); setEditTask(null); setPrefill(''); setShowForm(true); };
 
-    const handleVoiceFab = () => {
-      if (voiceOn) { voiceStop(); return; }
-      const ok = voiceStart(text => { setPrefill(text); setDefSlot('Flexible'); setDefDate(null); setEditTask(null); setShowForm(true); });
-      if (!ok) alert("Reconnaissance vocale non disponible.\nEssaie Chrome desktop ou Android Chrome.");
-    };
-
     return (
       <div style={{paddingTop: timer ? 56 : 0}}>
         {timer && (
@@ -1538,15 +1517,6 @@
             onFinish={() => { handleToggle(timer.taskId); setTimer(null); }}
             onCancel={() => setTimer(null)}
           />
-        )}
-
-        {IS_MOBILE && voiceOn && (
-          <div className="listen-overlay">
-            <div className="listen-ring">🎙️</div>
-            <div className="listen-text">J'écoute…</div>
-            <div className="listen-hint">Dis le titre de ta tâche</div>
-            <button className="listen-cancel" onClick={voiceStop}>Annuler</button>
-          </div>
         )}
 
         {tab==='day' && <CalendarStrip selectedDate={selectedDate} onSelectDate={setSelectedDate} tasks={tasks} />}
@@ -1603,12 +1573,6 @@
         </div>
 
         <div className="fab-area">
-          {IS_MOBILE && voiceOk && (
-            <button className={`fab-voice ${voiceOn?'listening':''}`} onClick={handleVoiceFab}>
-              {voiceOn?'🎙️':'🎤'}
-              <span className="fab-voice-label">Parler</span>
-            </button>
-          )}
           <button className="fab" onClick={()=>tab==='day'?openAdd(null,selectedDate):openAdd()}>+</button>
         </div>
 
