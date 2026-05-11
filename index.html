@@ -1263,7 +1263,7 @@
   function App() {
     const [tasks,        setTasks]        = useState(() => migrateTasks(load(KEYS.tasks, [])));
     const [customCats,   setCustomCats]   = useState(() => load(KEYS.cats, []));
-    const [tab,          setTab]          = useState('backlog');
+    const [tab,          setTab]          = useState('day');
     const [selectedDate, setSelectedDate] = useState(todayKey);
     const [showForm,   setShowForm]   = useState(false);
     const [editTask,   setEditTask]   = useState(null);
@@ -1349,14 +1349,14 @@
         .finally(() => setSyncing(false));
     }, []);
 
-    // Rafraîchissement automatique quand l'app redevient visible (changement d'onglet, retour sur l'app)
-    // → permet de voir les tâches cochées sur un autre appareil
+    // Rafraîchissement automatique : visibilité + toutes les 5 minutes en arrière-plan
+    // → permet de voir les tâches cochées sur un autre appareil même si l'onglet reste ouvert
     useEffect(() => {
       if (!PROXY_URL) return;
       let lastRefresh = Date.now();
-      const MIN_INTERVAL_MS = 30000; // au max 1 refresh toutes les 30s
-      const onVisible = () => {
-        if (document.visibilityState !== 'visible') return;
+      const MIN_INTERVAL_MS = 30000; // anti-spam : pas plus d'1 refresh toutes les 30s
+
+      const doRefresh = () => {
         const now = Date.now();
         if (now - lastRefresh < MIN_INTERVAL_MS) return;
         lastRefresh = now;
@@ -1366,8 +1366,18 @@
           .catch(() => {})
           .finally(() => setSyncing(false));
       };
+
+      // Refresh quand l'app reprend le focus (retour sur onglet, déverrouillage téléphone)
+      const onVisible = () => { if (document.visibilityState === 'visible') doRefresh(); };
       document.addEventListener('visibilitychange', onVisible);
-      return () => document.removeEventListener('visibilitychange', onVisible);
+
+      // Refresh périodique toutes les 5 minutes (pour garder l'ordi à jour même onglet actif)
+      const interval = setInterval(doRefresh, 5 * 60 * 1000);
+
+      return () => {
+        document.removeEventListener('visibilitychange', onVisible);
+        clearInterval(interval);
+      };
     }, [mergeNotionData]);
 
     // Sync une tâche vers Notion (create ou update)
