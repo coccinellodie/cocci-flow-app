@@ -337,7 +337,7 @@
   const PROXY_URL = 'https://wild-dream-69fd.e-nirennold.workers.dev';
 
   const notionGet = () =>
-    fetch(PROXY_URL + '/tasks').then(r => r.json());
+    fetch(PROXY_URL + '/tasks?_=' + Date.now(), { cache: 'no-store' }).then(r => r.json());
 
   const notionCreate = (task) =>
     fetch(PROXY_URL + '/tasks', {
