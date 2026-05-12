@@ -1325,7 +1325,7 @@
     const [prefill,    setPrefill]    = useState('');
     const [timer,      setTimer]      = useState(null);
     const [syncing,      setSyncing]      = useState(false);
-    const [energyFilter, setEnergyFilter] = useState(() => load(KEYS.energy, null));
+    const [energyFilter, setEnergyFilter] = useState(null); // pas persisté : toujours neutre à l'ouverture
     const timerRef = useRef(null);
     const dragRef   = useRef(null);
 
@@ -1334,7 +1334,6 @@
 
     useEffect(() => { save(KEYS.tasks, tasks); }, [tasks]);
     useEffect(() => { save(KEYS.cats, customCats); }, [customCats]);
-    useEffect(() => { save(KEYS.energy, energyFilter); }, [energyFilter]);
 
     // Merge Notion data → local state (préserve les coches locales pas encore confirmées)
     const mergeNotionData = useCallback((data) => {
@@ -1379,7 +1378,8 @@
         return [...merged, ...localOnly];
       });
 
-      save(KEYS.tasks, data);
+      // Ne pas sauvegarder `data` brut ici — ça écraserait les champs locaux (energy, etc.)
+      // La sauvegarde est gérée par le useEffect qui réagit aux changements de `tasks`
 
       // Re-PATCH les tâches que Notion n'a pas encore (syncs ratées)
       if (PROXY_URL && toResync.length) {
