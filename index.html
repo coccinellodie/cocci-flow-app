@@ -1139,7 +1139,7 @@
   function TaskFormSheet({ onClose, onSave, initial, allCats, customCatIds, onAddCustomCat, onDeleteCustomCat, defaultSlot, defaultDate }) {
     const isEdit = !!initial;
     const [title,      setTitle]      = useState(initial?.title || '');
-    const [priority,   setPriority]   = useState(initial?.priority || 'Moyenne');
+    const [priority,   setPriority]   = useState(initial?.priority || 'Haute');
     const [slot,       setSlot]       = useState(initial?.slot || defaultSlot || 'Flexible');
     const [duration,   setDuration]   = useState(initial?.duration || 30);
     const [categories, setCategories] = useState(initial?.categories || []);
