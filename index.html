@@ -283,6 +283,7 @@
     { id: 'finance',   icon: '💰', label: 'Finance' },
     { id: 'social',    icon: '💬', label: 'Social' },
     { id: 'marketing', icon: '📣', label: 'Marketing & Visibilité' },
+    { id: 'diapason',  icon: '♪', label: 'Diapason ♪' },
   ];
 
   // ── UTILS ──────────────────────────────────────────
@@ -312,10 +313,12 @@
   const fmtDateLabel = (dateKey) => {
     if (!dateKey) return '';
     const t = todayKey(), y = addDays(1);
-    if (dateKey===t) return "aujourd'hui";
-    if (dateKey===y) return 'demain';
     const d = new Date(dateKey+'T12:00:00');
-    return DAY_FR[d.getDay()].toLowerCase();
+    const dayName = DAY_FR[d.getDay()].toLowerCase();
+    const dateStr = `${d.getDate()} ${MON_FR[d.getMonth()]}`;
+    if (dateKey===t) return `aujourd'hui · ${dateStr}`;
+    if (dateKey===y) return `demain · ${dateStr}`;
+    return `${dayName} · ${dateStr}`;
   };
 
   // ── DEVICE DETECTION ───────────────────────────────
