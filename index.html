@@ -1320,14 +1320,14 @@
   const MONTHS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
   const MONTHS_SHORT = ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Août','Sep','Oct','Nov','Déc'];
   const FIN_CATS = {
-    '30615cdd-eadc-813e-9161-e8f37e9865a4': { name:'Programmes',    bg:'#e8d5f5', color:'#7b2d9a' },
-    '30615cdd-eadc-8146-a258-fc57ef4253bf': { name:'Massage',        bg:'#d5f5e8', color:'#1a7a4a' },
-    '30615cdd-eadc-8180-8daf-e0efae387701': { name:'Sous location',  bg:'#f0f0f0', color:'#555'    },
-    '30615cdd-eadc-8180-a4f8-ddcec8fea6de': { name:'Coaching',       bg:'#d5e8f5', color:'#1a4a7a' },
+    '30615cdd-eadc-813e-9161-e8f37e9865a4': { name:'Programmes',    bg:'#d6e8d3', color:'#1e4d1a' },
+    '30615cdd-eadc-8146-a258-fc57ef4253bf': { name:'Massage',        bg:'#c8e0c4', color:'#243D1F' },
+    '30615cdd-eadc-8180-8daf-e0efae387701': { name:'Sous location',  bg:'#e2ede0', color:'#4a6b47' },
+    '30615cdd-eadc-8180-a4f8-ddcec8fea6de': { name:'Coaching',       bg:'#b8d4b3', color:'#1a3d17' },
     '30615cdd-eadc-81ad-b65d-c4078f66792f': { name:'Remboursements', bg:'#fde8e8', color:'#c0392b' },
-    '30615cdd-eadc-81c5-9f0d-d5613df8f16a': { name:'Ostéopathie',   bg:'#fef0d5', color:'#7a4a1a' },
-    '30615cdd-eadc-81cb-9f69-de36d2eb6305': { name:'Hypnose',        bg:'#f5d5e8', color:'#9a1a6a' },
-    '30615cdd-eadc-81ec-87b4-c25a7ca9f975': { name:'Bonus',          bg:'#fdf5d5', color:'#7a6a1a' },
+    '30615cdd-eadc-81c5-9f0d-d5613df8f16a': { name:'Ostéopathie',   bg:'#daebd7', color:'#2d5229' },
+    '30615cdd-eadc-81cb-9f69-de36d2eb6305': { name:'Hypnose',        bg:'#cfe3cb', color:'#243D1F' },
+    '30615cdd-eadc-81ec-87b4-c25a7ca9f975': { name:'Bonus',          bg:'#e8f0d5', color:'#4a5e1a' },
   };
   const FIN_CATS_LIST = [
     { id:'30615cdd-eadc-8180-a4f8-ddcec8fea6de', name:'Coaching'      },
@@ -1476,7 +1476,7 @@
     };
 
     const selStyle = { border:'1px solid var(--border)', borderRadius:8, padding:'4px 8px', background:'var(--bg)', color:'var(--text)', fontSize:12 };
-    const chipStyle = (bg,color) => ({ fontSize:10, padding:'2px 7px', borderRadius:8, background:bg, color, fontWeight:600, whiteSpace:'nowrap' });
+    const chipStyle = (bg,color) => ({ fontSize:11, padding:'3px 8px', borderRadius:20, background:bg, color, fontWeight:600, whiteSpace:'nowrap' });
 
     return (
       <div style={{padding:'0 0 80px'}}>
@@ -1639,9 +1639,9 @@
                 <span style={{fontSize:11,color:'var(--text-dim)',minWidth:48}}>{fmtD(e.date)}</span>
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontFamily:"'Cormorant Garamond', serif",fontSize:16,fontWeight:500,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',letterSpacing:'-0.01em'}}>{e.nom||'—'}</div>
-                  <div style={{display:'flex',gap:3,flexWrap:'wrap',marginTop:3}}>
+                  <div style={{display:'flex',gap:4,flexWrap:'wrap',marginTop:4}}>
                     {cats.map(c=><span key={c.name} style={chipStyle(c.bg,c.color)}>{c.name}</span>)}
-                    {provs.map(p=><span key={p} style={chipStyle('rgba(139,162,136,0.18)','var(--green-dk)')}>{p}</span>)}
+                    {provs.map(p=><span key={p} style={chipStyle('#c8e0c4','#243D1F')}>{p}</span>)}
                   </div>
                 </div>
                 <div style={{textAlign:'right',flexShrink:0}}>
