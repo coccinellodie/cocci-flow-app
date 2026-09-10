@@ -1373,29 +1373,39 @@
     const [yr,        setYr]        = React.useState(cy);
     const [filterCat, setFilterCat] = React.useState('');
     const [filterPro, setFilterPro] = React.useState('');
-    const [selMonth,  setSelMonth]  = React.useState(now.getMonth()); // 0-11
+    const [selMonths, setSelMonths] = React.useState(new Set()); // Set de mois 0-11, vide = tous
     const [showForm,  setShowForm]  = React.useState(false);
     const [saving,    setSaving]    = React.useState(false);
     const [form, setForm] = React.useState({ nom:'', date: now.toISOString().slice(0,10), montant:'', paiement:'Cb Sumup', catId:'', provId:'' });
 
-    const load = React.useCallback(async () => {
+    const load = async () => {
       setLoading(true); setError(null);
       try {
-        const r = await fetch(PROXY_URL + '/finances/entries', { cache:'no-store' });
+        const r = await fetch(PROXY_URL + '/finances/entries?t=' + Date.now(), { cache:'no-store' });
         if (!r.ok) throw new Error('HTTP ' + r.status);
         setEntries(await r.json());
       } catch(e) { setError(e.message); }
       finally { setLoading(false); }
-    }, []);
+    };
+    const loadRef = React.useRef(load);
+    React.useEffect(() => { loadRef.current = load; });
 
-    React.useEffect(() => { load(); }, [load]);
+    React.useEffect(() => { loadRef.current(); }, []);
 
     const years = [...new Set(entries.map(e=>e.date?.slice(0,4)).filter(Boolean))].sort().reverse();
     if (!years.includes(cy)) years.unshift(cy);
 
-    const moKey = `${yr}-${String(selMonth+1).padStart(2,'0')}`;
+    const toggleMonth = (i) => setSelMonths(prev => {
+      const next = new Set(prev);
+      next.has(i) ? next.delete(i) : next.add(i);
+      return next;
+    });
     const filtered = entries.filter(e => {
-      if (!e.date?.startsWith(moKey)) return false;
+      if (!e.date?.startsWith(yr)) return false;
+      if (selMonths.size > 0) {
+        const m = parseInt(e.date?.slice(5,7)) - 1;
+        if (!selMonths.has(m)) return false;
+      }
       if (filterCat && !e.catIds?.includes(filterCat)) return false;
       if (filterPro && !e.provIds?.includes(filterPro)) return false;
       return true;
@@ -1420,7 +1430,7 @@
         if (!r.ok) throw new Error('HTTP ' + r.status);
         setShowForm(false);
         setForm({ nom:'', date: new Date().toISOString().slice(0,10), montant:'', paiement:'Cb Sumup', catId:'', provId:'' });
-        await load();
+        await loadRef.current();
       } catch(e) { alert('Erreur : ' + e.message); }
       finally { setSaving(false); }
     };
@@ -1435,7 +1445,7 @@
           <h2 style={{margin:0, fontSize:18, fontWeight:700, color:'var(--green-dk)'}}>💰 Entrées</h2>
           <div style={{display:'flex', gap:6, alignItems:'center'}}>
             {loading && <span style={{fontSize:11,color:'var(--text-dim)'}}>…</span>}
-            <button onClick={load} style={{background:'none',border:'1px solid var(--border)',borderRadius:7,padding:'4px 8px',fontSize:12,color:'var(--text-dim)',cursor:'pointer'}}>↻</button>
+            <button onClick={()=>load()} style={{background:'none',border:'1px solid var(--border)',borderRadius:7,padding:'4px 8px',fontSize:12,color:'var(--text-dim)',cursor:'pointer'}}>↻</button>
             <button onClick={()=>setShowForm(true)} style={{background:'var(--green-dk)',border:'none',borderRadius:7,padding:'5px 11px',fontSize:13,fontWeight:700,color:'white',cursor:'pointer'}}>+ Ajouter</button>
           </div>
         </div>
@@ -1447,7 +1457,7 @@
           {[
             { label:'Ce mois', val:fmtE(totalMonth), sub: MONTHS_FR[now.getMonth()] },
             { label:'Année ' + cy, val:fmtE(totalYear), sub: entries.filter(e=>e.date?.startsWith(cy)).length + ' séances' },
-            { label: MONTHS_FR[selMonth], val:fmtE(totalFiltered), sub: filtered.length + ' entrée' + (filtered.length!==1?'s':'') },
+            { label: selMonths.size===0 ? 'Année '+yr : selMonths.size===1 ? MONTHS_FR[[...selMonths][0]] : selMonths.size+' mois', val:fmtE(totalFiltered), sub: filtered.length + ' entrée' + (filtered.length!==1?'s':'') },
           ].map(s=>(
             <div key={s.label} style={{flex:1,background:'var(--card)',borderRadius:10,padding:'9px 10px',border:'1px solid var(--border)'}}>
               <div style={{fontSize:9,color:'var(--text-dim)',textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:2}}>{s.label}</div>
@@ -1489,22 +1499,29 @@
 
         {/* Onglets mois */}
         <div style={{display:'flex',gap:4,padding:'0 14px 10px',overflowX:'auto',scrollbarWidth:'none'}}>
+          <button onClick={()=>setSelMonths(new Set())} style={{
+            flexShrink:0, borderRadius:10, padding:'6px 10px', cursor:'pointer',
+            background: selMonths.size===0 ? 'var(--green-dk)' : 'var(--card)',
+            color: selMonths.size===0 ? 'white' : 'var(--text)',
+            border: selMonths.size===0 ? 'none' : '1px solid var(--border)',
+            fontSize:11, fontWeight:600,
+          }}>Tous</button>
           {MONTHS_SHORT.map((m,i)=>{
             const mk = `${yr}-${String(i+1).padStart(2,'0')}`;
             const hasEntries = entries.some(e=>e.date?.startsWith(mk));
             const moTotal = entries.filter(e=>e.date?.startsWith(mk)&&(!filterCat||e.catIds?.includes(filterCat))&&(!filterPro||e.provIds?.includes(filterPro))).reduce((s,e)=>s+(e.montant||0),0);
-            const isActive = selMonth===i;
+            const isActive = selMonths.has(i);
             return (
-              <button key={i} onClick={()=>setSelMonth(i)} style={{
-                flexShrink:0, border:'none', borderRadius:10, padding:'6px 10px', cursor:'pointer',
+              <button key={i} onClick={()=>toggleMonth(i)} style={{
+                flexShrink:0, borderRadius:10, padding:'6px 10px', cursor:'pointer',
                 background: isActive ? 'var(--green-dk)' : hasEntries ? 'var(--card)' : 'transparent',
                 color: isActive ? 'white' : hasEntries ? 'var(--text)' : 'var(--text-dim)',
-                border: isActive ? 'none' : '1px solid var(--border)',
-                opacity: hasEntries ? 1 : 0.4,
+                border: isActive ? '2px solid var(--green-dk)' : '1px solid var(--border)',
+                opacity: hasEntries ? 1 : 0.35,
                 transition:'all 0.15s',
               }}>
                 <div style={{fontSize:11,fontWeight:600}}>{m}</div>
-                {hasEntries && <div style={{fontSize:9,marginTop:1,opacity:0.8}}>{moTotal>0 ? Math.round(moTotal)+'€' : ''}</div>}
+                {hasEntries && <div style={{fontSize:9,marginTop:1,opacity:0.85}}>{moTotal>0 ? Math.round(moTotal)+'€' : ''}</div>}
               </button>
             );
           })}
