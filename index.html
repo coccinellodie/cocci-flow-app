@@ -1633,7 +1633,7 @@
             const cats = (e.catIds||[]).map(id=>FIN_CATS[id]).filter(Boolean);
             const provs = (e.provIds||[]).map(id=>FIN_PROVS[id]).filter(Boolean);
             return (
-              <button key={e.id} onClick={() => openEdit(e)} style={{display:'flex',alignItems:'center',gap:8,padding:'9px 12px',borderRadius:9,background:'var(--card)',border:'1px solid var(--border)',cursor:'pointer',width:'100%',textAlign:'left',WebkitTapHighlightColor:'rgba(0,0,0,0.05)'}}>
+              <button key={e.id} onClick={() => openEdit(e)} onTouchEnd={ev=>{ev.preventDefault();openEdit(e);}} style={{display:'flex',alignItems:'center',gap:8,padding:'9px 12px',borderRadius:9,background:'var(--card)',border:'1px solid var(--border)',cursor:'pointer',width:'100%',textAlign:'left',WebkitTapHighlightColor:'rgba(0,0,0,0.05)',touchAction:'manipulation'}}>
                 <span style={{fontSize:11,color:'var(--text-dim)',minWidth:48}}>{fmtD(e.date)}</span>
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontSize:13,fontWeight:500,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{e.nom||'—'}</div>
@@ -2148,9 +2148,11 @@
           ))}
         </div>
 
-        <div className="fab-area">
-          <button className="fab" onClick={()=>tab==='day'?openAdd(null,selectedDate):openAdd()}>+</button>
-        </div>
+        {tab !== 'finances' && (
+          <div className="fab-area">
+            <button className="fab" onClick={()=>tab==='day'?openAdd(null,selectedDate):openAdd()}>+</button>
+          </div>
+        )}
 
         {ctxTask && (
           <ContextMenu task={ctxTask}
