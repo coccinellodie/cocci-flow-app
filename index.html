@@ -1316,7 +1316,7 @@
 
   // ── APP ────────────────────────────────────────────
 
-  const MONTHS_FR = ['Janvier','évrier','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  const MONTHS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
   function FinancesView({ finances, setFinances }) {
     const now = new Date(), cy = now.getFullYear();
     const allYears = [...new Set([String(cy),...Object.keys(finances).map(k=>k.split('-')[0])])].sort().reverse();
