@@ -1377,6 +1377,9 @@
     const [showForm,  setShowForm]  = React.useState(false);
     const [saving,    setSaving]    = React.useState(false);
     const [form, setForm] = React.useState({ nom:'', date: now.toISOString().slice(0,10), montant:'', paiement:'Cb Sumup', catId:'', provId:'' });
+    const [editEntry, setEditEntry] = React.useState(null);
+    const [editForm,  setEditForm]  = React.useState({});
+    const [deleting,  setDeleting]  = React.useState(false);
 
     const load = async () => {
       setLoading(true); setError(null);
@@ -1433,6 +1436,37 @@
         await loadRef.current();
       } catch(e) { alert('Erreur : ' + e.message); }
       finally { setSaving(false); }
+    };
+
+    const openEdit = (e) => {
+      setEditEntry(e);
+      setEditForm({ nom: e.nom, date: e.date, montant: String(e.montant||''), paiement: e.paiement||'Cb Sumup', catId: e.catIds?.[0]||'', provId: e.provIds?.[0]||'' });
+    };
+
+    const updateEntry = async () => {
+      if (!editForm.nom || !editForm.date || !editForm.montant) return;
+      setSaving(true);
+      try {
+        const body = { nom: editForm.nom, date: editForm.date, montant: parseFloat(editForm.montant), paiement: editForm.paiement, catId: editForm.catId||undefined, provId: editForm.provId||undefined };
+        const r = await fetch(PROXY_URL + '/finances/entries/' + editEntry.id, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const updated = await r.json();
+        setEntries(prev => prev.map(e => e.id === updated.id ? updated : e));
+        setEditEntry(null);
+      } catch(e) { alert('Erreur : ' + e.message); }
+      finally { setSaving(false); }
+    };
+
+    const deleteEntry = async () => {
+      if (!window.confirm('Supprimer définitivement cette entrée ?')) return;
+      setDeleting(true);
+      try {
+        const r = await fetch(PROXY_URL + '/finances/entries/' + editEntry.id, { method:'DELETE' });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        setEntries(prev => prev.filter(e => e.id !== editEntry.id));
+        setEditEntry(null);
+      } catch(e) { alert('Erreur : ' + e.message); }
+      finally { setDeleting(false); }
     };
 
     const selStyle = { border:'1px solid var(--border)', borderRadius:8, padding:'4px 8px', background:'var(--bg)', color:'var(--text)', fontSize:12 };
@@ -1595,7 +1629,7 @@
             const cats = (e.catIds||[]).map(id=>FIN_CATS[id]).filter(Boolean);
             const provs = (e.provIds||[]).map(id=>FIN_PROVS[id]).filter(Boolean);
             return (
-              <div key={e.id} style={{display:'flex',alignItems:'center',gap:8,padding:'9px 12px',borderRadius:9,background:'var(--card)',border:'1px solid var(--border)'}}>
+              <div key={e.id} onClick={() => openEdit(e)} style={{display:'flex',alignItems:'center',gap:8,padding:'9px 12px',borderRadius:9,background:'var(--card)',border:'1px solid var(--border)',cursor:'pointer'}}>
                 <span style={{fontSize:11,color:'var(--text-dim)',minWidth:48}}>{fmtD(e.date)}</span>
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontSize:13,fontWeight:500,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{e.nom||'—'}</div>
@@ -1606,14 +1640,68 @@
                 </div>
                 <div style={{textAlign:'right',flexShrink:0}}>
                   <div style={{fontSize:14,fontWeight:700,color:'var(--green-dk)'}}>{fmtE(e.montant)}</div>
-                  <div style={{fontSize:10,color:'var(--text-dim)'}}>{e.paiement}</div>
+                  <div style={{fontSize:10,color:'var(--text-dim)'}}>{e.paiement||'—'}</div>
                 </div>
+                <span style={{fontSize:15,color:'var(--text-dim)',opacity:0.4,paddingLeft:2}}>›</span>
               </div>
             );
           })}
         </div>
 
         {/* Modal ajout */}
+        {/* Modal édition */}
+        {editEntry && (
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',display:'flex',alignItems:'flex-end',justifyContent:'center',zIndex:200}} onClick={e=>{if(e.target===e.currentTarget)setEditEntry(null);}}>
+            <div style={{background:'var(--bg)',borderRadius:'16px 16px 0 0',padding:'20px 16px 36px',width:'100%',maxWidth:480,maxHeight:'90vh',overflowY:'auto'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+                <h3 style={{margin:0,fontSize:16,fontWeight:700,color:'var(--text)'}}>Modifier l'entrée</h3>
+                <button onClick={deleteEntry} disabled={deleting} style={{background:'none',border:'none',color:'#e55',fontSize:13,fontWeight:600,cursor:'pointer',padding:'4px 8px',opacity:deleting?0.5:1}}>
+                  {deleting ? '…' : '🗑 Supprimer'}
+                </button>
+              </div>
+              {[
+                { label:'Nom / Client', key:'nom', type:'text' },
+                { label:'Date', key:'date', type:'date' },
+                { label:'Montant (€)', key:'montant', type:'number' },
+              ].map(f=>(
+                <div key={f.key} style={{marginBottom:10}}>
+                  <div style={{fontSize:11,color:'var(--text-dim)',fontWeight:600,textTransform:'uppercase',marginBottom:3}}>{f.label}</div>
+                  <input type={f.type} value={editForm[f.key]||''} onChange={e=>setEditForm(p=>({...p,[f.key]:e.target.value}))}
+                    style={{width:'100%',border:'1px solid var(--border)',borderRadius:8,padding:'8px 10px',fontSize:14,color:'var(--text)',background:'var(--bg)'}}/>
+                </div>
+              ))}
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:10}}>
+                <div>
+                  <div style={{fontSize:11,color:'var(--text-dim)',fontWeight:600,textTransform:'uppercase',marginBottom:3}}>Paiement</div>
+                  <select value={editForm.paiement||''} onChange={e=>setEditForm(p=>({...p,paiement:e.target.value}))} style={{width:'100%',border:'1px solid var(--border)',borderRadius:8,padding:'7px 8px',fontSize:13,color:'var(--text)',background:'var(--bg)'}}>
+                    {['Cb Sumup','Cb Indy','Virement','Espèces','Paypal','Stripe','Chèque'].map(v=><option key={v}>{v}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <div style={{fontSize:11,color:'var(--text-dim)',fontWeight:600,textTransform:'uppercase',marginBottom:3}}>Catégorie</div>
+                  <select value={editForm.catId||''} onChange={e=>setEditForm(p=>({...p,catId:e.target.value}))} style={{width:'100%',border:'1px solid var(--border)',borderRadius:8,padding:'7px 8px',fontSize:13,color:'var(--text)',background:'var(--bg)'}}>
+                    <option value=''>—</option>
+                    {FIN_CATS_LIST.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div style={{marginBottom:14}}>
+                <div style={{fontSize:11,color:'var(--text-dim)',fontWeight:600,textTransform:'uppercase',marginBottom:3}}>Provenance</div>
+                <select value={editForm.provId||''} onChange={e=>setEditForm(p=>({...p,provId:e.target.value}))} style={{width:'100%',border:'1px solid var(--border)',borderRadius:8,padding:'7px 8px',fontSize:13,color:'var(--text)',background:'var(--bg)'}}>
+                  <option value=''>—</option>
+                  {FIN_PROVS_LIST.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+              <div style={{display:'flex',gap:8}}>
+                <button onClick={()=>setEditEntry(null)} style={{flex:1,background:'var(--border)',border:'none',borderRadius:8,padding:'10px',fontSize:14,cursor:'pointer',color:'var(--text)'}}>Annuler</button>
+                <button onClick={updateEntry} disabled={saving||!editForm.nom||!editForm.date||!editForm.montant} style={{flex:2,background:'var(--green-dk)',border:'none',borderRadius:8,padding:'10px',fontSize:14,fontWeight:700,color:'white',cursor:'pointer',opacity:(saving||!editForm.nom||!editForm.date||!editForm.montant)?0.5:1}}>
+                  {saving ? '⏳ Envoi…' : 'Enregistrer'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {showForm && (
           <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',display:'flex',alignItems:'flex-end',justifyContent:'center',zIndex:200}} onClick={e=>{if(e.target===e.currentTarget)setShowForm(false);}}>
             <div style={{background:'var(--bg)',borderRadius:'16px 16px 0 0',padding:'20px 16px',width:'100%',maxWidth:480,maxHeight:'90vh',overflowY:'auto'}}>
