@@ -283,6 +283,8 @@
     { id: 'finance',   icon: '💰', label: 'Finance' },
     { id: 'social',    icon: '💬', label: 'Social' },
     { id: 'marketing', icon: '📣', label: 'Marketing & Visibilité' },
+    { id: 'diapason', icon: '', label: 'Diapason ♪' },
+    { id: 'coaching', icon: '🧭', label: 'Coaching' },
     { id: 'diapason',  icon: '', label: 'Diapason ♪' },
     { id: 'coaching',  icon: '🧭', label: 'Coaching' },
   ];
@@ -1315,10 +1317,68 @@
   }
 
   // ── APP ────────────────────────────────────────────
+
+  const MONTHS_FR = ['Janvier','évrier','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  function FinancesView({ finances, setFinances }) {
+    const now = new Date(), cy = now.getFullYear();
+    const allYears = [...new Set([String(cy),...Object.keys(finances).map(k=>k.split('-')[0])])].sort().reverse();
+    const [yr, setYr] = React.useState(String(cy));
+    const [editing, setEdit] = React.useState(null);
+    const [val, setVal] = React.useState('');
+    const months = MONTHS_FR.map((m,i)=>{const k=`${yr}-${String(i+1).padStart(2,'0')}`;return{k,m,v:finances[k]??null};});
+    const total = months.reduce((s,m)=>s+(parseFloat(m.v)||0),0);
+    const maxV = Math.max(...months.map(m=>parseFloat(m.v)||0),1);
+    const fmt = v=>v==null?'—':Number(v).toLocaleString('fr-FR')+' €';
+    const commit = ()=>{
+      if(!editing)return;
+      const n=parseFloat(val.replace(',','.'));
+      setFinances(p=>{const nx={...p};if(!isNaN(n)&&val.trim())nx[editing]=n;else delete nx[editing];return nx;});
+      setEdit(null);setVal('');
+    };
+    const curKey = `${cy}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    return (
+      <div style={{padding:'16px 12px 80px'}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
+          <h2 style={{margin:0,fontSize:20,fontWeight:700,color:'var(--green-dk)'}}>Chiffre d&apos;affaires</h2>
+          <select value={yr} onChange={e=>setYr(e.target.value)} style={{border:'1px solid var(--border)',borderRadius:8,padding:'4px 8px',background:'var(--bg)',color:'var(--text)',fontSize:14}}>
+            {allYears.map(y=><option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
+        <div style={{background:'var(--green-lt)',borderRadius:12,padding:'12px 16px',marginBottom:16,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <span style={{fontSize:14,color:'var(--green-dk)',fontWeight:600}}>Total {yr}</span>
+          <span style={{fontSize:22,fontWeight:700,color:'var(--green-dk)'}}>{fmt(total||null)}</span>
+        </div>
+        <div style={{display:'flex',alignItems:'flex-end',gap:3,height:64,marginBottom:16}}>
+          {months.map(({k,m,v})=>{
+            const h=v?Math.max(6,Math.round((parseFloat(v)/maxV)*56)):4;
+            const cur=k===curKey;
+            return <div key={k} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:2,cursor:'pointer'}} onClick={()=>{setEdit(k);setVal(v!=null?String(v):'');}}>
+              <div style={{width:'100%',height:h,borderRadius:3,background:v?(cur?'var(--green-dk)':'#6db87a'):'var(--border)',transition:'height 0.3s'}}/>
+              <span style={{fontSize:8,color:'var(--text-dim)'}}>{m.slice(0,3)}</span>
+            </div>;
+          })}
+        </div>
+        <div style={{display:'flex',flexDirection:'column',gap:6}}>
+          {months.map(({k,m,v})=>{
+            const cur=k===curKey;
+            return <div key={k} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 14px',borderRadius:10,background:'var(--card)',border:cur?'2px solid var(--green-dk)':'1px solid var(--border)',cursor:'pointer'}} onClick={()=>{setEdit(k);setVal(v!=null?String(v):'')}}>
+              <span style={{fontSize:14,fontWeight:cur?700:400,color:cur?'var(--green-dk)':'var(--text)'}}>{m}</span>
+              {editing===k
+                ?<input autoFocus type="number" value={val} onChange={e=>setVal(e.target.value)} onBlur={commit} onKeyDown={e=>{if(e.key==='Enter')commit();if(e.key==='Escape')setEdit(null);}} style={{width:110,textAlign:'right',border:'1px solid var(--green-dk)',borderRadius:6,padding:'4px 8px',background:'var(--bg)',color:'var(--text)',fontSize:14}} placeholder="Montant €"/>
+                :<span style={{fontSize:15,fontWeight:600,color:v?'var(--green-dk)':'var(--text-dim)'}}>{fmt(v)}</span>}
+            </div>;
+          })}
+        </div>
+      </div>
+    );
+  }
+
   function App() {
     const [tasks,        setTasks]        = useState(() => migrateTasks(load(KEYS.tasks, [])));
     const [customCats,   setCustomCats]   = useState(() => load(KEYS.cats, []));
     const [tab,          setTab]          = useState('day');
+    const [finances,setFinances] = React.useState(()=>{try{return JSON.parse(localStorage.getItem('flow_finances_v1')||'{}')}catch(e){return{}}});
+    React.useEffect(()=>{localStorage.setItem('flow_finances_v1',JSON.stringify(finances));},[finances]);
     const [selectedDate, setSelectedDate] = useState(todayKey);
     const [showForm,   setShowForm]   = useState(false);
     const [editTask,   setEditTask]   = useState(null);
@@ -1696,9 +1756,10 @@
         {tab==='day'     && <DayView tasks={tasks} allCats={allCats} onToggle={handleToggle} onMenu={setCtxTask} onAddToSlot={s=>openAdd(s,selectedDate)} selectedDate={selectedDate} dragRef={dragRef} onDrop={handleMove} energyFilter={energyFilter} />}
         {tab==='backlog' && <BacklogView tasks={tasks} allCats={allCats} onToggle={handleToggle} onMenu={setCtxTask} dragRef={dragRef} onDrop={handleMove} energyFilter={energyFilter} />}
         {tab==='fait'    && <DoneView tasks={tasks} allCats={allCats} onToggle={handleToggle} onMenu={setCtxTask} />}
+        {tab==='finances' && <FinancesView finances={finances} setFinances={setFinances} />}
 
         <div className="tabs">
-          {[{id:'day',label:'Planning',icon:'📅'},{id:'backlog',label:'À faire',icon:'✦'},{id:'fait',label:'Fait',icon:'✓'}].map(t=>(
+          {[{id:'day',label:'Planning',icon:'📅'},{id:'backlog',label:'À faire',icon:'✦'},{id:'fait',label:'Fait',icon:'✓'},{id:'finances',label:'Finances',icon:'💰'}].map(t=>(
             <button key={t.id} className={`tab ${tab===t.id?'active':''}`} onClick={()=>setTab(t.id)}>
               <span className="tab-icon">{t.icon}</span>
               {t.label}
