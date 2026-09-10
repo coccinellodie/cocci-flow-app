@@ -1384,6 +1384,7 @@
     const [editEntry, setEditEntry] = React.useState(null);
     const [editForm,  setEditForm]  = React.useState({});
     const [deleting,  setDeleting]  = React.useState(false);
+    const editOpenedAt = React.useRef(0);
 
     const load = async () => {
       setLoading(true); setError(null);
@@ -1443,6 +1444,7 @@
     };
 
     const openEdit = (e) => {
+      editOpenedAt.current = Date.now();
       setEditEntry(e);
       setEditForm({ nom: e.nom, date: e.date, montant: String(e.montant||''), paiement: e.paiement||'Cb Sumup', catId: e.catIds?.[0]||'', provId: e.provIds?.[0]||'' });
     };
@@ -1655,7 +1657,7 @@
         {/* Modal ajout */}
         {/* Modal édition */}
         {editEntry && (
-          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',display:'flex',alignItems:'flex-end',justifyContent:'center',zIndex:200}} onClick={e=>{if(e.target===e.currentTarget)setEditEntry(null);}}>
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',display:'flex',alignItems:'flex-end',justifyContent:'center',zIndex:200}} onClick={e=>{if(e.target===e.currentTarget && Date.now()-editOpenedAt.current>350)setEditEntry(null);}}>
             <div style={{background:'var(--bg)',borderRadius:'16px 16px 0 0',padding:'20px 16px 36px',width:'100%',maxWidth:480,maxHeight:'90vh',overflowY:'auto'}}>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
                 <h3 style={{margin:0,fontSize:16,fontWeight:700,color:'var(--text)'}}>Modifier l'entrée</h3>
