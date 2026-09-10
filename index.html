@@ -1316,57 +1316,249 @@
 
   // ── APP ────────────────────────────────────────────
 
+  // ── Finances : lookups catégorie / provenance ─────────
   const MONTHS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
-  function FinancesView({ finances, setFinances }) {
-    const now = new Date(), cy = now.getFullYear();
-    const allYears = [...new Set([String(cy),...Object.keys(finances).map(k=>k.split('-')[0])])].sort().reverse();
-    const [yr, setYr] = React.useState(String(cy));
-    const [editing, setEdit] = React.useState(null);
-    const [val, setVal] = React.useState('');
-    const months = MONTHS_FR.map((m,i)=>{const k=`${yr}-${String(i+1).padStart(2,'0')}`;return{k,m,v:finances[k]??null};});
-    const total = months.reduce((s,m)=>s+(parseFloat(m.v)||0),0);
-    const maxV = Math.max(...months.map(m=>parseFloat(m.v)||0),1);
-    const fmt = v=>v==null?'—':Number(v).toLocaleString('fr-FR')+' €';
-    const commit = ()=>{
-      if(!editing)return;
-      const n=parseFloat(val.replace(',','.'));
-      setFinances(p=>{const nx={...p};if(!isNaN(n)&&val.trim())nx[editing]=n;else delete nx[editing];return nx;});
-      setEdit(null);setVal('');
+  const MONTHS_SHORT = ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Août','Sep','Oct','Nov','Déc'];
+  const FIN_CATS = {
+    '30615cdd-eadc-813e-9161-e8f37e9865a4': { name:'Programmes',    bg:'#e8d5f5', color:'#7b2d9a' },
+    '30615cdd-eadc-8146-a258-fc57ef4253bf': { name:'Massage',        bg:'#d5f5e8', color:'#1a7a4a' },
+    '30615cdd-eadc-8180-8daf-e0efae387701': { name:'Sous location',  bg:'#f0f0f0', color:'#555'    },
+    '30615cdd-eadc-8180-a4f8-ddcec8fea6de': { name:'Coaching',       bg:'#d5e8f5', color:'#1a4a7a' },
+    '30615cdd-eadc-81ad-b65d-c4078f66792f': { name:'Remboursements', bg:'#fde8e8', color:'#c0392b' },
+    '30615cdd-eadc-81c5-9f0d-d5613df8f16a': { name:'Ostéopathie',   bg:'#fef0d5', color:'#7a4a1a' },
+    '30615cdd-eadc-81cb-9f69-de36d2eb6305': { name:'Hypnose',        bg:'#f5d5e8', color:'#9a1a6a' },
+    '30615cdd-eadc-81ec-87b4-c25a7ca9f975': { name:'Bonus',          bg:'#fdf5d5', color:'#7a6a1a' },
+  };
+  const FIN_CATS_LIST = [
+    { id:'30615cdd-eadc-8180-a4f8-ddcec8fea6de', name:'Coaching'      },
+    { id:'30615cdd-eadc-81cb-9f69-de36d2eb6305', name:'Hypnose'       },
+    { id:'30615cdd-eadc-8146-a258-fc57ef4253bf', name:'Massage'       },
+    { id:'30615cdd-eadc-81c5-9f0d-d5613df8f16a', name:'Ostéopathie'  },
+    { id:'30615cdd-eadc-813e-9161-e8f37e9865a4', name:'Programmes'    },
+    { id:'30615cdd-eadc-8180-8daf-e0efae387701', name:'Sous location' },
+    { id:'30615cdd-eadc-81ad-b65d-c4078f66792f', name:'Remboursements'},
+    { id:'30615cdd-eadc-81ec-87b4-c25a7ca9f975', name:'Bonus'         },
+  ];
+  const FIN_PROVS = {
+    '30615cdd-eadc-8001-b263-eac95ff8104b': 'Doctolib',
+    '30615cdd-eadc-8019-a380-c4aeae6f0d8b': 'Anciens patients',
+    '30615cdd-eadc-8025-abf9-ccd351fbb9c1': "Salle d'attente",
+    '30615cdd-eadc-8037-b038-fa91162fbf20': 'Psy ou doc',
+    '30615cdd-eadc-8061-bb5f-d88359c20ebf': 'Bouche à oreille',
+    '30615cdd-eadc-8084-a276-f06de8488697': 'Autre',
+    '30615cdd-eadc-80ed-a4bc-e5420535ec3f': 'Google',
+    '30615cdd-eadc-80f6-a012-e1a1ec212746': 'Facebook',
+    '30615cdd-eadc-80f8-b17d-e78c0b7e39e3': 'Instagram',
+  };
+  const FIN_PROVS_LIST = [
+    { id:'30615cdd-eadc-8001-b263-eac95ff8104b', name:'Doctolib'         },
+    { id:'30615cdd-eadc-8019-a380-c4aeae6f0d8b', name:'Anciens patients' },
+    { id:'30615cdd-eadc-8025-abf9-ccd351fbb9c1', name:"Salle d'attente" },
+    { id:'30615cdd-eadc-8037-b038-fa91162fbf20', name:'Psy ou doc'       },
+    { id:'30615cdd-eadc-8061-bb5f-d88359c20ebf', name:'Bouche à oreille' },
+    { id:'30615cdd-eadc-80eda4bc-e5420535ec3f',  name:'Google'           },
+    { id:'30615cdd-eadc-80f6-a012-e1a1ec212746', name:'Facebook'         },
+    { id:'30615cdd-eadc-80f8-b17d-e78c0b7e39e3', name:'Instagram'        },
+    { id:'30615cdd-eadc-8084-a276-f06de8488697', name:'Autre'            },
+  ];
+
+  function FinancesView() {
+    const fmtE = v => v == null ? '—' : Number(v).toLocaleString('fr-FR') + ' €';
+    const fmtD = d => { if(!d) return ''; const p=d.split('-'); return `${p[2]}/${p[1]}`; };
+    const now = new Date(), cy = String(now.getFullYear());
+
+    const [entries,   setEntries]   = React.useState([]);
+    const [loading,   setLoading]   = React.useState(true);
+    const [error,     setError]     = React.useState(null);
+    const [yr,        setYr]        = React.useState(cy);
+    const [filterCat, setFilterCat] = React.useState('');
+    const [filterPro, setFilterPro] = React.useState('');
+    const [view,      setView]      = React.useState('list'); // 'list' | 'months'
+    const [showForm,  setShowForm]  = React.useState(false);
+    const [saving,    setSaving]    = React.useState(false);
+    const [form, setForm] = React.useState({ nom:'', date: now.toISOString().slice(0,10), montant:'', paiement:'Cb Sumup', catId:'', provId:'' });
+
+    const load = React.useCallback(async () => {
+      setLoading(true); setError(null);
+      try {
+        const r = await fetch(PROXY_URL + '/finances/entries', { cache:'no-store' });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        setEntries(await r.json());
+      } catch(e) { setError(e.message); }
+      finally { setLoading(false); }
+    }, []);
+
+    React.useEffect(() => { load(); }, [load]);
+
+    const years = [...new Set(entries.map(e=>e.date?.slice(0,4)).filter(Boolean))].sort().reverse();
+    if (!years.includes(cy)) years.unshift(cy);
+
+    const filtered = entries.filter(e => {
+      if (yr && !e.date?.startsWith(yr)) return false;
+      if (filterCat && !e.catIds?.includes(filterCat)) return false;
+      if (filterPro && !e.provIds?.includes(filterPro)) return false;
+      return true;
+    });
+
+    const totalFiltered = filtered.reduce((s,e)=>s+(e.montant||0),0);
+    const curMo = `${cy}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    const totalMonth = entries.filter(e=>e.date?.startsWith(curMo)).reduce((s,e)=>s+(e.montant||0),0);
+    const totalYear  = entries.filter(e=>e.date?.startsWith(cy)).reduce((s,e)=>s+(e.montant||0),0);
+
+    // totaux par mois pour le graphe
+    const byMonth = Array(12).fill(0);
+    entries.filter(e=>e.date?.startsWith(yr)).forEach(e=>{ const m=parseInt(e.date?.slice(5,7))-1; if(m>=0)byMonth[m]+=(e.montant||0); });
+    const maxV = Math.max(...byMonth, 1);
+
+    const saveEntry = async () => {
+      if (!form.nom || !form.date || !form.montant) return;
+      setSaving(true);
+      try {
+        const body = { nom: form.nom, date: form.date, montant: parseFloat(form.montant), paiement: form.paiement, catId: form.catId||undefined, provId: form.provId||undefined };
+        const r = await fetch(PROXY_URL + '/finances/entries', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        setShowForm(false);
+        setForm({ nom:'', date: new Date().toISOString().slice(0,10), montant:'', paiement:'Cb Sumup', catId:'', provId:'' });
+        await load();
+      } catch(e) { alert('Erreur : ' + e.message); }
+      finally { setSaving(false); }
     };
-    const curKey = `${cy}-${String(now.getMonth()+1).padStart(2,'0')}`;
+
+    const selStyle = { border:'1px solid var(--border)', borderRadius:8, padding:'4px 8px', background:'var(--bg)', color:'var(--text)', fontSize:12 };
+    const chipStyle = (bg,color) => ({ fontSize:10, padding:'2px 7px', borderRadius:8, background:bg, color, fontWeight:600, whiteSpace:'nowrap' });
+
     return (
-      <div style={{padding:'16px 12px 80px'}}>
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
-          <h2 style={{margin:0,fontSize:20,fontWeight:700,color:'var(--green-dk)'}}>Chiffre d&apos;affaires</h2>
-          <select value={yr} onChange={e=>setYr(e.target.value)} style={{border:'1px solid var(--border)',borderRadius:8,padding:'4px 8px',background:'var(--bg)',color:'var(--text)',fontSize:14}}>
-            {allYears.map(y=><option key={y} value={y}>{y}</option>)}
+      <div style={{padding:'0 0 80px'}}>
+        {/* Header */}
+        <div style={{padding:'14px 14px 10px', display:'flex', alignItems:'center', justifyContent:'space-between'}}>
+          <h2 style={{margin:0, fontSize:18, fontWeight:700, color:'var(--green-dk)'}}>💰 Entrées</h2>
+          <div style={{display:'flex', gap:6, alignItems:'center'}}>
+            {loading && <span style={{fontSize:11,color:'var(--text-dim)'}}>…</span>}
+            <button onClick={load} style={{background:'none',border:'1px solid var(--border)',borderRadius:7,padding:'4px 8px',fontSize:12,color:'var(--text-dim)',cursor:'pointer'}}>↻</button>
+            <button onClick={()=>setShowForm(true)} style={{background:'var(--green-dk)',border:'none',borderRadius:7,padding:'5px 11px',fontSize:13,fontWeight:700,color:'white',cursor:'pointer'}}>+ Ajouter</button>
+          </div>
+        </div>
+
+        {error && <div style={{margin:'0 14px 10px',padding:'10px 12px',borderRadius:9,background:'#fef3f3',border:'1px solid #f0c0c0',color:'#c0392b',fontSize:12}}>❌ {error}</div>}
+
+        {/* Stats */}
+        <div style={{display:'flex',gap:8,padding:'0 14px 12px'}}>
+          {[
+            { label:'Ce mois', val:fmtE(totalMonth), sub: MONTHS_FR[now.getMonth()] },
+            { label:'Année ' + cy, val:fmtE(totalYear), sub: entries.filter(e=>e.date?.startsWith(cy)).length + ' séances' },
+            { label:'Sélection', val:fmtE(totalFiltered), sub: filtered.length + ' entrée' + (filtered.length!==1?'s':'') },
+          ].map(s=>(
+            <div key={s.label} style={{flex:1,background:'var(--card)',borderRadius:10,padding:'9px 10px',border:'1px solid var(--border)'}}>
+              <div style={{fontSize:9,color:'var(--text-dim)',textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:2}}>{s.label}</div>
+              <div style={{fontSize:15,fontWeight:700,color:'var(--green-dk)'}}>{s.val}</div>
+              <div style={{fontSize:10,color:'var(--text-dim)',marginTop:1}}>{s.sub}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Mini graphe */}
+        <div style={{display:'flex',alignItems:'flex-end',gap:2,height:56,padding:'0 14px',marginBottom:12}}>
+          {byMonth.map((v,i)=>{
+            const h = v ? Math.max(6,Math.round((v/maxV)*48)) : 3;
+            const isCurMo = yr===cy && i===now.getMonth();
+            return (
+              <div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:1}}>
+                <div style={{width:'100%',height:h,borderRadius:2,background:v?(isCurMo?'var(--green-dk)':'#6db87a'):'var(--border)',transition:'height 0.3s'}}/>
+                <span style={{fontSize:7,color:'var(--text-dim)',lineHeight:1}}>{MONTHS_SHORT[i]}</span>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Filtres */}
+        <div style={{display:'flex',gap:6,padding:'0 14px 10px',flexWrap:'wrap'}}>
+          <select value={yr} onChange={e=>setYr(e.target.value)} style={selStyle}>
+            {years.map(y=><option key={y} value={y}>{y}</option>)}
           </select>
+          <select value={filterCat} onChange={e=>setFilterCat(e.target.value)} style={selStyle}>
+            <option value=''>Toutes catégories</option>
+            {FIN_CATS_LIST.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+          <select value={filterPro} onChange={e=>setFilterPro(e.target.value)} style={selStyle}>
+            <option value=''>Toutes provenances</option>
+            {FIN_PROVS_LIST.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+          <button onClick={()=>{setFilterCat('');setFilterPro('');}} style={{...selStyle,cursor:'pointer',color:'var(--text-dim)'}}>✕</button>
         </div>
-        <div style={{background:'var(--green-lt)',borderRadius:12,padding:'12px 16px',marginBottom:16,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-          <span style={{fontSize:14,color:'var(--green-dk)',fontWeight:600}}>Total {yr}</span>
-          <span style={{fontSize:22,fontWeight:700,color:'var(--green-dk)'}}>{fmt(total||null)}</span>
-        </div>
-        <div style={{display:'flex',alignItems:'flex-end',gap:3,height:64,marginBottom:16}}>
-          {months.map(({k,m,v})=>{
-            const h=v?Math.max(6,Math.round((parseFloat(v)/maxV)*56)):4;
-            const cur=k===curKey;
-            return <div key={k} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:2,cursor:'pointer'}} onClick={()=>{setEdit(k);setVal(v!=null?String(v):'');}}>
-              <div style={{width:'100%',height:h,borderRadius:3,background:v?(cur?'var(--green-dk)':'#6db87a'):'var(--border)',transition:'height 0.3s'}}/>
-              <span style={{fontSize:8,color:'var(--text-dim)'}}>{m.slice(0,3)}</span>
-            </div>;
+
+        {/* Liste */}
+        <div style={{padding:'0 14px',display:'flex',flexDirection:'column',gap:5}}>
+          {loading && entries.length===0 && <div style={{textAlign:'center',padding:20,color:'var(--text-dim)',fontSize:13}}>⏳ Chargement depuis Notion…</div>}
+          {!loading && filtered.length===0 && <div style={{textAlign:'center',padding:20,color:'var(--text-dim)',fontSize:13}}>Aucune entrée pour ces filtres</div>}
+          {filtered.map(e=>{
+            const cats = (e.catIds||[]).map(id=>FIN_CATS[id]).filter(Boolean);
+            const provs = (e.provIds||[]).map(id=>FIN_PROVS[id]).filter(Boolean);
+            return (
+              <div key={e.id} style={{display:'flex',alignItems:'center',gap:8,padding:'9px 12px',borderRadius:9,background:'var(--card)',border:'1px solid var(--border)'}}>
+                <span style={{fontSize:11,color:'var(--text-dim)',minWidth:48}}>{fmtD(e.date)}</span>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:13,fontWeight:500,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{e.nom||'—'}</div>
+                  <div style={{display:'flex',gap:3,flexWrap:'wrap',marginTop:3}}>
+                    {cats.map(c=><span key={c.name} style={chipStyle(c.bg,c.color)}>{c.name}</span>)}
+                    {provs.map(p=><span key={p} style={chipStyle('#eef','#557')}>{p}</span>)}
+                  </div>
+                </div>
+                <div style={{textAlign:'right',flexShrink:0}}>
+                  <div style={{fontSize:14,fontWeight:700,color:'var(--green-dk)'}}>{fmtE(e.montant)}</div>
+                  <div style={{fontSize:10,color:'var(--text-dim)'}}>{e.paiement}</div>
+                </div>
+              </div>
+            );
           })}
         </div>
-        <div style={{display:'flex',flexDirection:'column',gap:6}}>
-          {months.map(({k,m,v})=>{
-            const cur=k===curKey;
-            return <div key={k} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 14px',borderRadius:10,background:'var(--card)',border:cur?'2px solid var(--green-dk)':'1px solid var(--border)',cursor:'pointer'}} onClick={()=>{setEdit(k);setVal(v!=null?String(v):'')}}>
-              <span style={{fontSize:14,fontWeight:cur?700:400,color:cur?'var(--green-dk)':'var(--text)'}}>{m}</span>
-              {editing===k
-                ?<input autoFocus type="number" value={val} onChange={e=>setVal(e.target.value)} onBlur={commit} onKeyDown={e=>{if(e.key==='Enter')commit();if(e.key==='Escape')setEdit(null);}} style={{width:110,textAlign:'right',border:'1px solid var(--green-dk)',borderRadius:6,padding:'4px 8px',background:'var(--bg)',color:'var(--text)',fontSize:14}} placeholder="Montant €"/>
-                :<span style={{fontSize:15,fontWeight:600,color:v?'var(--green-dk)':'var(--text-dim)'}}>{fmt(v)}</span>}
-            </div>;
-          })}
-        </div>
+
+        {/* Modal ajout */}
+        {showForm && (
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',display:'flex',alignItems:'flex-end',justifyContent:'center',zIndex:200}} onClick={e=>{if(e.target===e.currentTarget)setShowForm(false);}}>
+            <div style={{background:'var(--bg)',borderRadius:'16px 16px 0 0',padding:'20px 16px',width:'100%',maxWidth:480,maxHeight:'90vh',overflowY:'auto'}}>
+              <h3 style={{margin:'0 0 16px',fontSize:16,fontWeight:700,color:'var(--text)'}}>Nouvelle entrée</h3>
+              {[
+                { label:'Nom / Client', key:'nom', type:'text', placeholder:'ex. Marie Dupont' },
+                { label:'Date',        key:'date', type:'date' },
+                { label:'Montant (€)', key:'montant', type:'number', placeholder:'90' },
+              ].map(f=>(
+                <div key={f.key} style={{marginBottom:10}}>
+                  <div style={{fontSize:11,color:'var(--text-dim)',fontWeight:600,textTransform:'uppercase',marginBottom:3}}>{f.label}</div>
+                  <input type={f.type} value={form[f.key]} placeholder={f.placeholder||''} onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))}
+                    style={{width:'100%',border:'1px solid var(--border)',borderRadius:8,padding:'8px 10px',fontSize:14,color:'var(--text)',background:'var(--bg)'}}/>
+                </div>
+              ))}
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:10}}>
+                <div>
+                  <div style={{fontSize:11,color:'var(--text-dim)',fontWeight:600,textTransform:'uppercase',marginBottom:3}}>Paiement</div>
+                  <select value={form.paiement} onChange={e=>setForm(p=>({...p,paiement:e.target.value}))} style={{width:'100%',border:'1px solid var(--border)',borderRadius:8,padding:'7px 8px',fontSize:13,color:'var(--text)',background:'var(--bg)'}}>
+                    {['Cb Sumup','Cb Indy','Virement','Espèces','Paypal','Stripe','Chèque'].map(v=><option key={v}>{v}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <div style={{fontSize:11,color:'var(--text-dim)',fontWeight:600,textTransform:'uppercase',marginBottom:3}}>Catégorie</div>
+                  <select value={form.catId} onChange={e=>setForm(p=>({...p,catId:e.target.value}))} style={{width:'100%',border:'1px solid var(--border)',borderRadius:8,padding:'7px 8px',fontSize:13,color:'var(--text)',background:'var(--bg)'}}>
+                    <option value=''>—</option>
+                    {FIN_CATS_LIST.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div style={{marginBottom:14}}>
+                <div style={{fontSize:11,color:'var(--text-dim)',fontWeight:600,textTransform:'uppercase',marginBottom:3}}>Provenance</div>
+                <select value={form.provId} onChange={e=>setForm(p=>({...p,provId:e.target.value}))} style={{width:'100%',border:'1px solid var(--border)',borderRadius:8,padding:'7px 8px',fontSize:13,color:'var(--text)',background:'var(--bg)'}}>
+                  <option value=''>—</option>
+                  {FIN_PROVS_LIST.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+              <div style={{display:'flex',gap:8}}>
+                <button onClick={()=>setShowForm(false)} style={{flex:1,background:'var(--border)',border:'none',borderRadius:8,padding:'10px',fontSize:14,cursor:'pointer',color:'var(--text)'}}>Annuler</button>
+                <button onClick={saveEntry} disabled={saving||!form.nom||!form.date||!form.montant} style={{flex:2,background:'var(--green-dk)',border:'none',borderRadius:8,padding:'10px',fontSize:14,fontWeight:700,color:'white',cursor:'pointer',opacity:(saving||!form.nom||!form.date||!form.montant)?0.5:1}}>
+                  {saving ? '⏳ Envoi…' : 'Enregistrer dans Notion'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -1375,8 +1567,6 @@
     const [tasks,        setTasks]        = useState(() => migrateTasks(load(KEYS.tasks, [])));
     const [customCats,   setCustomCats]   = useState(() => load(KEYS.cats, []));
     const [tab,          setTab]          = useState('day');
-    const [finances,setFinances] = React.useState(()=>{try{return JSON.parse(localStorage.getItem('flow_finances_v1')||'{}')}catch(e){return{}}});
-    React.useEffect(()=>{localStorage.setItem('flow_finances_v1',JSON.stringify(finances));},[finances]);
     const [selectedDate, setSelectedDate] = useState(todayKey);
     const [showForm,   setShowForm]   = useState(false);
     const [editTask,   setEditTask]   = useState(null);
@@ -1754,7 +1944,7 @@
         {tab==='day'     && <DayView tasks={tasks} allCats={allCats} onToggle={handleToggle} onMenu={setCtxTask} onAddToSlot={s=>openAdd(s,selectedDate)} selectedDate={selectedDate} dragRef={dragRef} onDrop={handleMove} energyFilter={energyFilter} />}
         {tab==='backlog' && <BacklogView tasks={tasks} allCats={allCats} onToggle={handleToggle} onMenu={setCtxTask} dragRef={dragRef} onDrop={handleMove} energyFilter={energyFilter} />}
         {tab==='fait'    && <DoneView tasks={tasks} allCats={allCats} onToggle={handleToggle} onMenu={setCtxTask} />}
-        {tab==='finances' && <FinancesView finances={finances} setFinances={setFinances} />}
+        {tab==='finances' && <FinancesView />}
 
         <div className="tabs">
           {[{id:'day',label:'Planning',icon:'📅'},{id:'backlog',label:'À faire',icon:'✦'},{id:'fait',label:'Fait',icon:'✓'},{id:'finances',label:'Finances',icon:'💰'}].map(t=>(
