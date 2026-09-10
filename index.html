@@ -1373,7 +1373,7 @@
     const [yr,        setYr]        = React.useState(cy);
     const [filterCat, setFilterCat] = React.useState('');
     const [filterPro, setFilterPro] = React.useState('');
-    const [view,      setView]      = React.useState('list'); // 'list' | 'months'
+    const [selMonth,  setSelMonth]  = React.useState(now.getMonth()); // 0-11
     const [showForm,  setShowForm]  = React.useState(false);
     const [saving,    setSaving]    = React.useState(false);
     const [form, setForm] = React.useState({ nom:'', date: now.toISOString().slice(0,10), montant:'', paiement:'Cb Sumup', catId:'', provId:'' });
@@ -1393,8 +1393,9 @@
     const years = [...new Set(entries.map(e=>e.date?.slice(0,4)).filter(Boolean))].sort().reverse();
     if (!years.includes(cy)) years.unshift(cy);
 
+    const moKey = `${yr}-${String(selMonth+1).padStart(2,'0')}`;
     const filtered = entries.filter(e => {
-      if (yr && !e.date?.startsWith(yr)) return false;
+      if (!e.date?.startsWith(moKey)) return false;
       if (filterCat && !e.catIds?.includes(filterCat)) return false;
       if (filterPro && !e.provIds?.includes(filterPro)) return false;
       return true;
@@ -1446,7 +1447,7 @@
           {[
             { label:'Ce mois', val:fmtE(totalMonth), sub: MONTHS_FR[now.getMonth()] },
             { label:'Année ' + cy, val:fmtE(totalYear), sub: entries.filter(e=>e.date?.startsWith(cy)).length + ' séances' },
-            { label:'Sélection', val:fmtE(totalFiltered), sub: filtered.length + ' entrée' + (filtered.length!==1?'s':'') },
+            { label: MONTHS_FR[selMonth], val:fmtE(totalFiltered), sub: filtered.length + ' entrée' + (filtered.length!==1?'s':'') },
           ].map(s=>(
             <div key={s.label} style={{flex:1,background:'var(--card)',borderRadius:10,padding:'9px 10px',border:'1px solid var(--border)'}}>
               <div style={{fontSize:9,color:'var(--text-dim)',textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:2}}>{s.label}</div>
@@ -1470,9 +1471,9 @@
           })}
         </div>
 
-        {/* Filtres */}
-        <div style={{display:'flex',gap:6,padding:'0 14px 10px',flexWrap:'wrap'}}>
-          <select value={yr} onChange={e=>setYr(e.target.value)} style={selStyle}>
+        {/* Sélecteur année + filtres */}
+        <div style={{display:'flex',gap:6,padding:'0 14px 8px',flexWrap:'wrap',alignItems:'center'}}>
+          <select value={yr} onChange={e=>{setYr(e.target.value);}} style={selStyle}>
             {years.map(y=><option key={y} value={y}>{y}</option>)}
           </select>
           <select value={filterCat} onChange={e=>setFilterCat(e.target.value)} style={selStyle}>
@@ -1483,7 +1484,30 @@
             <option value=''>Toutes provenances</option>
             {FIN_PROVS_LIST.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
-          <button onClick={()=>{setFilterCat('');setFilterPro('');}} style={{...selStyle,cursor:'pointer',color:'var(--text-dim)'}}>✕</button>
+          {(filterCat||filterPro) && <button onClick={()=>{setFilterCat('');setFilterPro('');}} style={{...selStyle,cursor:'pointer'}}>✕</button>}
+        </div>
+
+        {/* Onglets mois */}
+        <div style={{display:'flex',gap:4,padding:'0 14px 10px',overflowX:'auto',scrollbarWidth:'none'}}>
+          {MONTHS_SHORT.map((m,i)=>{
+            const mk = `${yr}-${String(i+1).padStart(2,'0')}`;
+            const hasEntries = entries.some(e=>e.date?.startsWith(mk));
+            const moTotal = entries.filter(e=>e.date?.startsWith(mk)&&(!filterCat||e.catIds?.includes(filterCat))&&(!filterPro||e.provIds?.includes(filterPro))).reduce((s,e)=>s+(e.montant||0),0);
+            const isActive = selMonth===i;
+            return (
+              <button key={i} onClick={()=>setSelMonth(i)} style={{
+                flexShrink:0, border:'none', borderRadius:10, padding:'6px 10px', cursor:'pointer',
+                background: isActive ? 'var(--green-dk)' : hasEntries ? 'var(--card)' : 'transparent',
+                color: isActive ? 'white' : hasEntries ? 'var(--text)' : 'var(--text-dim)',
+                border: isActive ? 'none' : '1px solid var(--border)',
+                opacity: hasEntries ? 1 : 0.4,
+                transition:'all 0.15s',
+              }}>
+                <div style={{fontSize:11,fontWeight:600}}>{m}</div>
+                {hasEntries && <div style={{fontSize:9,marginTop:1,opacity:0.8}}>{moTotal>0 ? Math.round(moTotal)+'€' : ''}</div>}
+              </button>
+            );
+          })}
         </div>
 
         {/* Liste */}
