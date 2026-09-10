@@ -1527,6 +1527,54 @@
           })}
         </div>
 
+        {/* Répartition par mode de paiement */}
+        {filtered.length > 0 && (() => {
+          const SUMUP_RATE = 0.0175;
+          const indyFee = m => (m * 0.008 + 0.15) * 1.20;
+          const sumupFee = m => m * SUMUP_RATE;
+          const modes = ['Cb Sumup','Cb Indy','Virement','Espèces','Chèque','Paypal','Stripe'];
+          const byMode = {};
+          filtered.forEach(e => {
+            const k = e.paiement || 'Autre';
+            if (!byMode[k]) byMode[k] = 0;
+            byMode[k] += e.montant || 0;
+          });
+          const rows = modes.filter(m => byMode[m]).map(m => {
+            const brut = byMode[m];
+            const fee  = m === 'Cb Sumup' ? sumupFee(brut) : m === 'Cb Indy' ? indyFee(brut) : null;
+            const net  = fee != null ? brut - fee : null;
+            return { m, brut, fee, net };
+          });
+          Object.keys(byMode).forEach(k => {
+            if (!modes.includes(k)) rows.push({ m: k, brut: byMode[k], fee: null, net: null });
+          });
+          if (!rows.length) return null;
+          return (
+            <div style={{margin:'0 14px 10px',borderRadius:10,border:'1px solid var(--border)',overflow:'hidden'}}>
+              <div style={{padding:'8px 12px',background:'var(--card)',borderBottom:'1px solid var(--border)',fontSize:11,fontWeight:700,color:'var(--text-dim)',textTransform:'uppercase',letterSpacing:'0.5px'}}>
+                Répartition par mode de paiement
+              </div>
+              {rows.map(({m,brut,fee,net})=>(
+                <div key={m} style={{display:'flex',alignItems:'center',padding:'7px 12px',borderBottom:'1px solid var(--border)',gap:8,background:'var(--bg)'}}>
+                  <span style={{flex:1,fontSize:13,fontWeight:500}}>{m}</span>
+                  <span style={{fontSize:13,fontWeight:700,color:'var(--green-dk)'}}>{fmtE(brut)}</span>
+                  {fee != null && (
+                    <>
+                      <span style={{fontSize:11,color:'#e55',fontWeight:600}}>−{fmtE(fee)}</span>
+                      <span style={{fontSize:13,fontWeight:700,color:'var(--text)'}}>{fmtE(net)}</span>
+                    </>
+                  )}
+                </div>
+              ))}
+              {rows.some(r=>r.fee!=null) && (
+                <div style={{padding:'6px 12px',background:'var(--card)',fontSize:11,color:'var(--text-dim)'}}>
+                  Sumup 1,75% · Indy (0,8% + 0,15€) × TVA 20%
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
         {/* Liste */}
         <div style={{padding:'0 14px',display:'flex',flexDirection:'column',gap:5}}>
           {loading && entries.length===0 && <div style={{textAlign:'center',padding:20,color:'var(--text-dim)',fontSize:13}}>⏳ Chargement depuis Notion…</div>}
