@@ -1482,7 +1482,7 @@
       <div style={{padding:'0 0 80px'}}>
         {/* Header */}
         <div style={{padding:'14px 14px 10px', display:'flex', alignItems:'center', justifyContent:'space-between'}}>
-          <h2 style={{margin:0, fontSize:18, fontWeight:700, color:'var(--green-dk)'}}>💰 Entrées</h2>
+          <h2 style={{margin:0, fontFamily:"'Cormorant Garamond', serif", fontSize:26, fontWeight:400, color:'var(--green-dk)', letterSpacing:'-0.01em'}}>Entrées CA</h2>
           <div style={{display:'flex', gap:6, alignItems:'center'}}>
             {loading && <span style={{fontSize:11,color:'var(--text-dim)'}}>…</span>}
             <button onClick={()=>load()} style={{background:'none',border:'1px solid var(--border)',borderRadius:7,padding:'7px 12px',fontSize:16,color:'var(--text-dim)',cursor:'pointer',WebkitTapHighlightColor:'rgba(0,0,0,0.05)',minWidth:40,minHeight:40}}>↻</button>
@@ -1501,7 +1501,7 @@
           ].map(s=>(
             <div key={s.label} style={{flex:1,background:'var(--card)',borderRadius:10,padding:'9px 10px',border:'1px solid var(--border)'}}>
               <div style={{fontSize:9,color:'var(--text-dim)',textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:2}}>{s.label}</div>
-              <div style={{fontSize:15,fontWeight:700,color:'var(--green-dk)'}}>{s.val}</div>
+              <div style={{fontFamily:"'Cormorant Garamond', serif",fontSize:19,fontWeight:400,color:'var(--green-dk)',lineHeight:1.15}}>{s.val}</div>
               <div style={{fontSize:10,color:'var(--text-dim)',marginTop:1}}>{s.sub}</div>
             </div>
           ))}
@@ -1635,17 +1635,17 @@
             const cats = (e.catIds||[]).map(id=>FIN_CATS[id]).filter(Boolean);
             const provs = (e.provIds||[]).map(id=>FIN_PROVS[id]).filter(Boolean);
             return (
-              <button key={e.id} onClick={() => openEdit(e)} onTouchEnd={ev=>{ev.preventDefault();openEdit(e);}} style={{display:'flex',alignItems:'center',gap:8,padding:'9px 12px',borderRadius:9,background:'var(--card)',border:'1px solid var(--border)',cursor:'pointer',width:'100%',textAlign:'left',WebkitTapHighlightColor:'rgba(0,0,0,0.05)',touchAction:'manipulation'}}>
+              <button type="button" key={e.id} onClick={() => openEdit(e)} style={{display:'flex',alignItems:'center',gap:8,padding:'9px 12px',borderRadius:9,background:'var(--card)',border:'1px solid var(--border)',cursor:'pointer',width:'100%',textAlign:'left',WebkitTapHighlightColor:'rgba(0,0,0,0.05)'}}>
                 <span style={{fontSize:11,color:'var(--text-dim)',minWidth:48}}>{fmtD(e.date)}</span>
                 <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:13,fontWeight:500,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{e.nom||'—'}</div>
+                  <div style={{fontFamily:"'Cormorant Garamond', serif",fontSize:16,fontWeight:500,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',letterSpacing:'-0.01em'}}>{e.nom||'—'}</div>
                   <div style={{display:'flex',gap:3,flexWrap:'wrap',marginTop:3}}>
                     {cats.map(c=><span key={c.name} style={chipStyle(c.bg,c.color)}>{c.name}</span>)}
-                    {provs.map(p=><span key={p} style={chipStyle('#eef','#557')}>{p}</span>)}
+                    {provs.map(p=><span key={p} style={chipStyle('rgba(139,162,136,0.18)','var(--green-dk)')}>{p}</span>)}
                   </div>
                 </div>
                 <div style={{textAlign:'right',flexShrink:0}}>
-                  <div style={{fontSize:14,fontWeight:700,color:'var(--green-dk)'}}>{fmtE(e.montant)}</div>
+                  <div style={{fontFamily:"'Cormorant Garamond', serif",fontSize:17,fontWeight:500,color:'var(--green-dk)'}}>{fmtE(e.montant)}</div>
                   <div style={{fontSize:10,color:'var(--text-dim)'}}>{e.paiement||'—'}</div>
                 </div>
                 <span style={{fontSize:15,color:'var(--text-dim)',opacity:0.4,paddingLeft:2}}>›</span>
@@ -1660,7 +1660,7 @@
           <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',display:'flex',alignItems:'flex-end',justifyContent:'center',zIndex:200}} onClick={e=>{if(e.target===e.currentTarget && Date.now()-editOpenedAt.current>350)setEditEntry(null);}}>
             <div style={{background:'var(--bg)',borderRadius:'16px 16px 0 0',padding:'20px 16px 36px',width:'100%',maxWidth:480,maxHeight:'90vh',overflowY:'auto'}}>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
-                <h3 style={{margin:0,fontSize:16,fontWeight:700,color:'var(--text)'}}>Modifier l'entrée</h3>
+                <h3 style={{margin:0,fontFamily:"'Cormorant Garamond', serif",fontSize:22,fontWeight:400,color:'var(--green-dk)'}}>Modifier l'entrée</h3>
                 <button onClick={deleteEntry} disabled={deleting} style={{background:'none',border:'none',color:'#e55',fontSize:13,fontWeight:600,cursor:'pointer',padding:'4px 8px',opacity:deleting?0.5:1}}>
                   {deleting ? '…' : '🗑 Supprimer'}
                 </button>
@@ -1711,7 +1711,7 @@
         {showForm && (
           <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',display:'flex',alignItems:'flex-end',justifyContent:'center',zIndex:200}} onClick={e=>{if(e.target===e.currentTarget)setShowForm(false);}}>
             <div style={{background:'var(--bg)',borderRadius:'16px 16px 0 0',padding:'20px 16px',width:'100%',maxWidth:480,maxHeight:'90vh',overflowY:'auto'}}>
-              <h3 style={{margin:'0 0 16px',fontSize:16,fontWeight:700,color:'var(--text)'}}>Nouvelle entrée</h3>
+              <h3 style={{margin:'0 0 16px',fontFamily:"'Cormorant Garamond', serif",fontSize:22,fontWeight:400,color:'var(--green-dk)'}}>Nouvelle entrée</h3>
               {[
                 { label:'Nom / Client', key:'nom', type:'text', placeholder:'ex. Marie Dupont' },
                 { label:'Date',        key:'date', type:'date' },
