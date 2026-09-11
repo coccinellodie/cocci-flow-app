@@ -1368,7 +1368,7 @@
   ];
 
   function FinancesView() {
-    const fmtE = v => v == null ? '—' : Number(v).toLocaleString('fr-FR') + ' €';
+    const fmtE = v => v == null ? '—' : Number(v).toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' €';
     const fmtD = d => { if(!d) return ''; const p=d.split('-'); return `${p[2]}/${p[1]}`; };
     const now = new Date(), cy = String(now.getFullYear());
 
@@ -1578,7 +1578,7 @@
                 transition:'all 0.15s', minWidth:52,
               }}>
                 <div style={{fontSize:12,fontWeight:700}}>{m}</div>
-                {hasEntries && <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,fontWeight:500,marginTop:2,opacity:0.9}}>{moTotal>0 ? Math.round(moTotal)+'€' : ''}</div>}
+                {hasEntries && <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,fontWeight:500,marginTop:2,opacity:0.9}}>{moTotal>0 ? Number(moTotal).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+'€' : ''}</div>}
               </button>
             );
           })}
