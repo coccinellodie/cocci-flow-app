@@ -1433,7 +1433,7 @@
       if (!form.nom || !form.date || !form.montant) return;
       setSaving(true);
       try {
-        const body = { nom: form.nom, date: form.date, montant: parseFloat(form.montant), paiement: form.paiement, catId: form.catId||undefined, provId: form.provId||undefined };
+        const body = { nom: form.nom, date: form.date, montant: form.paiement==='Forfait'&&!form.montant ? 0 : parseFloat(form.montant), paiement: form.paiement, catId: form.catId||undefined, provId: form.provId||undefined };
         const r = await fetch(PROXY_URL + '/finances/entries', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
         if (!r.ok) throw new Error('HTTP ' + r.status);
         setShowForm(false);
@@ -1571,7 +1571,7 @@
 
         {/* Répartition par mode de paiement */}
         {filtered.length > 0 && (() => {
-          const modes = ['Cb Sumup','Cb Indy','Virement','Espèces','Chèque','Paypal','Stripe'];
+          const modes = ['Cb Sumup','Cb Indy','Virement','Espèces','Chèque','Paypal','Stripe','Forfait'];
           const byMode = {};
           filtered.forEach(e => {
             const k = e.paiement || 'Autre';
@@ -1681,8 +1681,8 @@
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:10}}>
                 <div>
                   <div style={{fontSize:11,color:'var(--text-dim)',fontWeight:600,textTransform:'uppercase',marginBottom:3}}>Paiement</div>
-                  <select value={editForm.paiement||''} onChange={e=>setEditForm(p=>({...p,paiement:e.target.value}))} style={{width:'100%',border:'1px solid var(--border)',borderRadius:8,padding:'7px 8px',fontSize:13,color:'var(--text)',background:'var(--bg)'}}>
-                    {['Cb Sumup','Cb Indy','Virement','Espèces','Paypal','Stripe','Chèque'].map(v=><option key={v}>{v}</option>)}
+                  <select value={editForm.paiement||''} onChange={e=>setEditForm(p=>({...p,paiement:e.target.value,montant:e.target.value==='Forfait'?'0':p.montant}))} style={{width:'100%',border:'1px solid var(--border)',borderRadius:8,padding:'7px 8px',fontSize:13,color:'var(--text)',background:'var(--bg)'}}>
+                    {['Cb Sumup','Cb Indy','Virement','Espèces','Paypal','Stripe','Chèque','Forfait'].map(v=><option key={v}>{v}</option>)}
                   </select>
                 </div>
                 <div>
@@ -1702,7 +1702,7 @@
               </div>
               <div style={{display:'flex',gap:8}}>
                 <button onClick={()=>setEditEntry(null)} style={{flex:1,background:'var(--border)',border:'none',borderRadius:8,padding:'10px',fontSize:14,cursor:'pointer',color:'var(--text)'}}>Annuler</button>
-                <button onClick={updateEntry} disabled={saving||!editForm.nom||!editForm.date||!editForm.montant} style={{flex:2,background:'var(--green-dk)',border:'none',borderRadius:8,padding:'10px',fontSize:14,fontWeight:700,color:'white',cursor:'pointer',opacity:(saving||!editForm.nom||!editForm.date||!editForm.montant)?0.5:1}}>
+                <button onClick={updateEntry} disabled={saving||!editForm.nom||!editForm.date||(!editForm.montant&&editForm.paiement!=='Forfait')} style={{flex:2,background:'var(--green-dk)',border:'none',borderRadius:8,padding:'10px',fontSize:14,fontWeight:700,color:'white',cursor:'pointer',opacity:(saving||!editForm.nom||!editForm.date||(!editForm.montant&&editForm.paiement!=='Forfait'))?0.5:1}}>
                   {saving ? '⏳ Envoi…' : 'Enregistrer'}
                 </button>
               </div>
@@ -1717,7 +1717,6 @@
               {[
                 { label:'Nom / Client', key:'nom', type:'text', placeholder:'ex. Marie Dupont' },
                 { label:'Date',        key:'date', type:'date' },
-                { label:'Montant (€)', key:'montant', type:'number', placeholder:'90' },
               ].map(f=>(
                 <div key={f.key} style={{marginBottom:10}}>
                   <div style={{fontSize:11,color:'var(--text-dim)',fontWeight:600,textTransform:'uppercase',marginBottom:3}}>{f.label}</div>
@@ -1725,11 +1724,16 @@
                     style={{width:'100%',border:'1px solid var(--border)',borderRadius:8,padding:'8px 10px',fontSize:14,color:'var(--text)',background:'var(--bg)'}}/>
                 </div>
               ))}
+              <div style={{marginBottom:10}}>
+                <div style={{fontSize:11,color:'var(--text-dim)',fontWeight:600,textTransform:'uppercase',marginBottom:3}}>Montant (€)</div>
+                <input type="number" value={form.montant} placeholder={form.paiement==='Forfait'?'Inclus dans forfait':'90'} disabled={form.paiement==='Forfait'} onChange={e=>setForm(p=>({...p,montant:e.target.value}))}
+                  style={{width:'100%',border:'1px solid var(--border)',borderRadius:8,padding:'8px 10px',fontSize:14,color:'var(--text)',background:form.paiement==='Forfait'?'var(--soft)':'var(--bg)',opacity:form.paiement==='Forfait'?0.5:1}}/>
+              </div>
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:10}}>
                 <div>
                   <div style={{fontSize:11,color:'var(--text-dim)',fontWeight:600,textTransform:'uppercase',marginBottom:3}}>Paiement</div>
-                  <select value={form.paiement} onChange={e=>setForm(p=>({...p,paiement:e.target.value}))} style={{width:'100%',border:'1px solid var(--border)',borderRadius:8,padding:'7px 8px',fontSize:13,color:'var(--text)',background:'var(--bg)'}}>
-                    {['Cb Sumup','Cb Indy','Virement','Espèces','Paypal','Stripe','Chèque'].map(v=><option key={v}>{v}</option>)}
+                  <select value={form.paiement} onChange={e=>setForm(p=>({...p,paiement:e.target.value,montant:e.target.value==='Forfait'?'':p.montant}))} style={{width:'100%',border:'1px solid var(--border)',borderRadius:8,padding:'7px 8px',fontSize:13,color:'var(--text)',background:'var(--bg)'}}>
+                    {['Cb Sumup','Cb Indy','Virement','Espèces','Paypal','Stripe','Chèque','Forfait'].map(v=><option key={v}>{v}</option>)}
                   </select>
                 </div>
                 <div>
@@ -1749,7 +1753,7 @@
               </div>
               <div style={{display:'flex',gap:8}}>
                 <button onClick={()=>setShowForm(false)} style={{flex:1,background:'var(--border)',border:'none',borderRadius:8,padding:'10px',fontSize:14,cursor:'pointer',color:'var(--text)'}}>Annuler</button>
-                <button onClick={saveEntry} disabled={saving||!form.nom||!form.date||!form.montant} style={{flex:2,background:'var(--green-dk)',border:'none',borderRadius:8,padding:'10px',fontSize:14,fontWeight:700,color:'white',cursor:'pointer',opacity:(saving||!form.nom||!form.date||!form.montant)?0.5:1}}>
+                <button onClick={saveEntry} disabled={saving||!form.nom||!form.date||(!form.montant&&form.paiement!=='Forfait')} style={{flex:2,background:'var(--green-dk)',border:'none',borderRadius:8,padding:'10px',fontSize:14,fontWeight:700,color:'white',cursor:'pointer',opacity:(saving||!form.nom||!form.date||(!form.montant&&form.paiement!=='Forfait'))?0.5:1}}>
                   {saving ? '⏳ Envoi…' : 'Enregistrer dans Notion'}
                 </button>
               </div>
