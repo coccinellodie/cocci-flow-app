@@ -31,6 +31,7 @@
       --soft-rose: #F8F2F0;
       --text:      #2D1810;
       --muted:     #9C8880;
+      --text-dim:  #7a6a5a;
       --border:    rgba(151,122,92,0.18);
     }
     html, body { height: 100%; }
@@ -1638,9 +1639,9 @@
             const provs = (e.provIds||[]).map(id=>FIN_PROVS[id]).filter(p=>p?.name);
             return (
               <button type="button" key={e.id} onClick={() => openEdit(e)} style={{display:'flex',alignItems:'center',gap:8,padding:'9px 12px',borderRadius:9,background:'var(--card)',border:'1px solid var(--border)',cursor:'pointer',width:'100%',textAlign:'left',WebkitTapHighlightColor:'rgba(0,0,0,0.05)'}}>
-                <span style={{fontSize:11,color:'var(--text-dim)',minWidth:48}}>{fmtD(e.date)}</span>
+                <span style={{fontSize:11,color:'#4a7a47',minWidth:48}}>{fmtD(e.date)}</span>
                 <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontFamily:"'Cormorant Garamond', serif",fontSize:16,fontWeight:500,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',letterSpacing:'-0.01em'}}>{e.nom||'—'}</div>
+                  <div style={{fontFamily:"'Cormorant Garamond', serif",fontSize:16,fontWeight:500,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',letterSpacing:'-0.01em',color:'#3a6037'}}>{e.nom||'—'}</div>
                   <div style={{display:'flex',gap:4,flexWrap:'wrap',marginTop:4}}>
                     {cats.map(c=><span key={c.name} style={chipStyle(c.bg,c.color)}>{c.name}</span>)}
                     {provs.map(p=><span key={p.name} style={chipStyle(p.bg,p.color)}>{p.name}</span>)}
