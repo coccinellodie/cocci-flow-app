@@ -1388,6 +1388,7 @@
     const editOpenedAt = React.useRef(0);
     const [dynCats,   setDynCats]   = React.useState([]);  // {id, name} depuis Notion
     const [dynProvs,  setDynProvs]  = React.useState([]);  // {id, name} depuis Notion
+    const [search,    setSearch]    = React.useState('');
 
     const load = async () => {
       setLoading(true); setError(null);
@@ -1426,6 +1427,7 @@
       }
       if (filterCat && !e.catIds?.includes(filterCat)) return false;
       if (filterPro && !e.provIds?.includes(filterPro)) return false;
+      if (search && !e.nom?.toLowerCase().includes(search.toLowerCase())) return false;
       return true;
     });
 
@@ -1640,6 +1642,19 @@
             </div>
           );
         })()}
+
+        {/* Recherche */}
+        <div style={{padding:'0 14px 10px',position:'relative'}}>
+          <span style={{position:'absolute',left:26,top:'50%',transform:'translateY(-50%)',fontSize:15,pointerEvents:'none',opacity:0.4}}>🔍</span>
+          <input
+            type="search"
+            value={search}
+            onChange={e=>setSearch(e.target.value)}
+            placeholder="Rechercher un client…"
+            style={{width:'100%',border:'1px solid var(--border)',borderRadius:22,padding:'9px 14px 9px 36px',fontSize:14,color:'var(--text)',background:'var(--card)',fontFamily:"'DM Sans',sans-serif",outline:'none',WebkitAppearance:'none',boxSizing:'border-box'}}
+          />
+          {search && <button onClick={()=>setSearch('')} style={{position:'absolute',right:20,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',fontSize:16,cursor:'pointer',color:'var(--muted)',padding:4}}>✕</button>}
+        </div>
 
         {/* Liste */}
         <div style={{padding:'0 14px',display:'flex',flexDirection:'column',gap:5}}>
