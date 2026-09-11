@@ -1378,7 +1378,7 @@
     const [yr,        setYr]        = React.useState(cy);
     const [filterCat, setFilterCat] = React.useState('');
     const [filterPro, setFilterPro] = React.useState('');
-    const [selMonths, setSelMonths] = React.useState(new Set()); // Set de mois 0-11, vide = tous
+    const [selMonths, setSelMonths] = React.useState(new Set());
     const [showForm,  setShowForm]  = React.useState(false);
     const [saving,    setSaving]    = React.useState(false);
     const [form, setForm] = React.useState({ nom:'', date: now.toISOString().slice(0,10), montant:'', paiement:'Cb Sumup', catId:'', provId:'' });
@@ -1386,13 +1386,22 @@
     const [editForm,  setEditForm]  = React.useState({});
     const [deleting,  setDeleting]  = React.useState(false);
     const editOpenedAt = React.useRef(0);
+    const [dynCats,   setDynCats]   = React.useState([]);  // {id, name} depuis Notion
+    const [dynProvs,  setDynProvs]  = React.useState([]);  // {id, name} depuis Notion
 
     const load = async () => {
       setLoading(true); setError(null);
       try {
-        const r = await fetch(PROXY_URL + '/finances/entries?t=' + Date.now(), { cache:'no-store' });
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        setEntries(await r.json());
+        const [rE, rC, rP] = await Promise.all([
+          fetch(PROXY_URL + '/finances/entries?t=' + Date.now(), { cache:'no-store' }),
+          fetch(PROXY_URL + '/finances/categories', { cache:'no-store' }),
+          fetch(PROXY_URL + '/finances/provenances', { cache:'no-store' }),
+        ]);
+        if (!rE.ok) throw new Error('HTTP ' + rE.status);
+        const [entriesData, catsData, provsData] = await Promise.all([rE.json(), rC.json(), rP.json()]);
+        setEntries(entriesData);
+        if (Array.isArray(catsData)) setDynCats(catsData);
+        if (Array.isArray(provsData)) setDynProvs(provsData);
       } catch(e) { setError(e.message); }
       finally { setLoading(false); }
     };
@@ -1533,11 +1542,11 @@
           </select>
           <select value={filterCat} onChange={e=>setFilterCat(e.target.value)} style={selStyle}>
             <option value=''>Toutes catégories</option>
-            {FIN_CATS_LIST.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+            {(dynCats.length?dynCats:FIN_CATS_LIST).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
           <select value={filterPro} onChange={e=>setFilterPro(e.target.value)} style={selStyle}>
             <option value=''>Toutes provenances</option>
-            {FIN_PROVS_LIST.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+            {(dynProvs.length?dynProvs:FIN_PROVS_LIST).map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
           {(filterCat||filterPro) && <button onClick={()=>{setFilterCat('');setFilterPro('');}} style={{...selStyle,cursor:'pointer'}}>✕</button>}
         </div>
@@ -1637,8 +1646,8 @@
           {loading && entries.length===0 && <div style={{textAlign:'center',padding:20,color:'var(--text-dim)',fontSize:13}}>⏳ Chargement depuis Notion…</div>}
           {!loading && filtered.length===0 && <div style={{textAlign:'center',padding:20,color:'var(--text-dim)',fontSize:13}}>Aucune entrée pour ces filtres</div>}
           {filtered.map(e=>{
-            const cats = (e.catIds||[]).map(id=>FIN_CATS[id]).filter(Boolean);
-            const provs = (e.provIds||[]).map(id=>FIN_PROVS[id]).filter(p=>p?.name);
+            const cats = (e.catIds||[]).map(id=>{ const d=dynCats.find(c=>c.id===id)||FIN_CATS[id]; return d?.name?{name:d.name,bg:FIN_CATS[id]?.bg||'rgba(139,162,136,0.2)',color:FIN_CATS[id]?.color||'#243D1F'}:null; }).filter(Boolean);
+            const provs = (e.provIds||[]).map(id=>{ const d=dynProvs.find(p=>p.id===id)||FIN_PROVS[id]; return d?.name?{name:d.name,bg:FIN_PROVS[id]?.bg||'rgba(139,162,136,0.18)',color:FIN_PROVS[id]?.color||'#243D1F'}:null; }).filter(Boolean);
             return (
               <button type="button" key={e.id} onClick={() => openEdit(e)} style={{display:'flex',alignItems:'center',gap:8,padding:'9px 12px',borderRadius:9,background:'var(--card)',border:'1px solid var(--border)',cursor:'pointer',width:'100%',textAlign:'left',WebkitTapHighlightColor:'rgba(0,0,0,0.05)'}}>
                 <span style={{fontSize:11,color:'#4a7a47',minWidth:48}}>{fmtD(e.date)}</span>
@@ -1692,7 +1701,7 @@
                   <div style={{fontSize:11,color:'var(--text-dim)',fontWeight:600,textTransform:'uppercase',marginBottom:3}}>Catégorie</div>
                   <select value={editForm.catId||''} onChange={e=>setEditForm(p=>({...p,catId:e.target.value}))} style={{width:'100%',border:'1px solid var(--border)',borderRadius:8,padding:'7px 8px',fontSize:13,color:'var(--text)',background:'var(--bg)'}}>
                     <option value=''>—</option>
-                    {FIN_CATS_LIST.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+                    {(dynCats.length?dynCats:FIN_CATS_LIST).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
                 </div>
               </div>
@@ -1700,7 +1709,7 @@
                 <div style={{fontSize:11,color:'var(--text-dim)',fontWeight:600,textTransform:'uppercase',marginBottom:3}}>Provenance</div>
                 <select value={editForm.provId||''} onChange={e=>setEditForm(p=>({...p,provId:e.target.value}))} style={{width:'100%',border:'1px solid var(--border)',borderRadius:8,padding:'7px 8px',fontSize:13,color:'var(--text)',background:'var(--bg)'}}>
                   <option value=''>—</option>
-                  {FIN_PROVS_LIST.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+                  {(dynProvs.length?dynProvs:FIN_PROVS_LIST).map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               </div>
               <div style={{display:'flex',gap:8}}>
@@ -1743,7 +1752,7 @@
                   <div style={{fontSize:11,color:'var(--text-dim)',fontWeight:600,textTransform:'uppercase',marginBottom:3}}>Catégorie</div>
                   <select value={form.catId} onChange={e=>setForm(p=>({...p,catId:e.target.value}))} style={{width:'100%',border:'1px solid var(--border)',borderRadius:8,padding:'7px 8px',fontSize:13,color:'var(--text)',background:'var(--bg)'}}>
                     <option value=''>—</option>
-                    {FIN_CATS_LIST.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+                    {(dynCats.length?dynCats:FIN_CATS_LIST).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
                 </div>
               </div>
@@ -1751,7 +1760,7 @@
                 <div style={{fontSize:11,color:'var(--text-dim)',fontWeight:600,textTransform:'uppercase',marginBottom:3}}>Provenance</div>
                 <select value={form.provId} onChange={e=>setForm(p=>({...p,provId:e.target.value}))} style={{width:'100%',border:'1px solid var(--border)',borderRadius:8,padding:'7px 8px',fontSize:13,color:'var(--text)',background:'var(--bg)'}}>
                   <option value=''>—</option>
-                  {FIN_PROVS_LIST.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+                  {(dynProvs.length?dynProvs:FIN_PROVS_LIST).map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               </div>
               <div style={{display:'flex',gap:8}}>
