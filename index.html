@@ -1378,7 +1378,8 @@
     const [yr,        setYr]        = React.useState(cy);
     const [filterCat, setFilterCat] = React.useState('');
     const [filterPro, setFilterPro] = React.useState('');
-    const [selMonths, setSelMonths] = React.useState(new Set());
+    const [selMonths, setSelMonths] = React.useState(new Set([now.getMonth()]));
+    const [showModes, setShowModes] = React.useState(false);
     const [showForm,  setShowForm]  = React.useState(false);
     const [saving,    setSaving]    = React.useState(false);
     const [form, setForm] = React.useState({ nom:'', date: now.toISOString().slice(0,10), montant:'', paiement:'Cb Sumup', catId:'', provId:'' });
@@ -1569,21 +1570,21 @@
             const isActive = selMonths.has(i);
             return (
               <button key={i} onClick={()=>toggleMonth(i)} style={{
-                flexShrink:0, borderRadius:10, padding:'6px 10px', cursor:'pointer',
+                flexShrink:0, borderRadius:12, padding:'8px 12px', cursor:'pointer',
                 background: isActive ? 'var(--green-dk)' : hasEntries ? 'var(--card)' : 'transparent',
                 color: isActive ? 'white' : hasEntries ? 'var(--text)' : 'var(--text-dim)',
                 border: isActive ? '2px solid var(--green-dk)' : '1px solid var(--border)',
                 opacity: hasEntries ? 1 : 0.35,
-                transition:'all 0.15s',
+                transition:'all 0.15s', minWidth:52,
               }}>
-                <div style={{fontSize:11,fontWeight:600}}>{m}</div>
-                {hasEntries && <div style={{fontSize:9,marginTop:1,opacity:0.85}}>{moTotal>0 ? Math.round(moTotal)+'€' : ''}</div>}
+                <div style={{fontSize:12,fontWeight:700}}>{m}</div>
+                {hasEntries && <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,fontWeight:500,marginTop:2,opacity:0.9}}>{moTotal>0 ? Math.round(moTotal)+'€' : ''}</div>}
               </button>
             );
           })}
         </div>
 
-        {/* Répartition par mode de paiement */}
+        {/* Répartition par mode de paiement — accordéon */}
         {filtered.length > 0 && (() => {
           const modes = ['Cb Sumup','Cb Indy','Virement','Espèces','Chèque','Paypal','Stripe','Forfait'];
           const byMode = {};
@@ -1606,39 +1607,53 @@
           });
           if (!rows.length) return null;
           const hasFees = rows.some(r=>r.fee!=null);
+          const totEncaisse = rows.reduce((s,r)=>s+r.total,0);
+          const totFrais    = rows.reduce((s,r)=>s+(r.fee||0),0);
+          const totNet      = rows.reduce((s,r)=>s+(r.net!=null?r.net:r.total),0);
           return (
             <div style={{margin:'0 14px 10px',borderRadius:10,border:'1px solid var(--border)',overflow:'hidden'}}>
-              <div style={{padding:'8px 12px',background:'var(--card)',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',gap:4}}>
-                <span style={{flex:1,fontSize:11,fontWeight:700,color:'var(--text-dim)',textTransform:'uppercase',letterSpacing:'0.5px'}}>Modes de paiement</span>
-                {hasFees && <>
-                  <span style={{fontSize:10,color:'var(--text-dim)',width:72,textAlign:'right'}}>Encaissé</span>
-                  <span style={{fontSize:10,color:'#e55',width:64,textAlign:'right'}}>Frais</span>
-                  <span style={{fontSize:10,color:'var(--text-dim)',width:72,textAlign:'right'}}>Net</span>
-                </>}
-                {!hasFees && <span style={{fontSize:10,color:'var(--text-dim)',width:72,textAlign:'right'}}>Total</span>}
-              </div>
-              {rows.map(({k,total,count,fee,net})=>(
-                <div key={k} style={{display:'flex',alignItems:'center',padding:'8px 12px',borderBottom:'1px solid var(--border)',gap:4,background:'var(--bg)'}}>
-                  <div style={{flex:1}}>
-                    <span style={{fontSize:13,fontWeight:500}}>{k}</span>
-                    <span style={{fontSize:10,color:'var(--text-dim)',marginLeft:6}}>{count} séance{count>1?'s':''}</span>
+              <button onClick={()=>setShowModes(v=>!v)} style={{width:'100%',padding:'10px 12px',background:'var(--card)',border:'none',cursor:'pointer',display:'flex',alignItems:'center',gap:4,WebkitTapHighlightColor:'transparent'}}>
+                <span style={{flex:1,fontSize:11,fontWeight:700,color:'var(--text-dim)',textTransform:'uppercase',letterSpacing:'0.5px',textAlign:'left'}}>Modes de paiement</span>
+                <span style={{fontSize:13,color:'var(--green-dk)',fontFamily:"'Cormorant Garamond',serif",fontWeight:500}}>{fmtE(totEncaisse)}</span>
+                <span style={{fontSize:14,color:'var(--text-dim)',marginLeft:6,transition:'transform 0.2s',display:'inline-block',transform:showModes?'rotate(180deg)':'rotate(0deg)'}}>▾</span>
+              </button>
+              {showModes && <>
+                <div style={{padding:'6px 12px 4px',background:'var(--bg)',borderTop:'1px solid var(--border)',display:'flex',gap:4}}>
+                  <span style={{flex:1,fontSize:10,color:'var(--text-dim)',fontWeight:600,textTransform:'uppercase'}}>Mode</span>
+                  <span style={{fontSize:10,color:'var(--text-dim)',width:68,textAlign:'right'}}>Encaissé</span>
+                  {hasFees && <><span style={{fontSize:10,color:'#e55',width:60,textAlign:'right'}}>Frais</span><span style={{fontSize:10,color:'var(--text-dim)',width:68,textAlign:'right'}}>Net</span></>}
+                </div>
+                {rows.map(({k,total,count,fee,net})=>(
+                  <div key={k} style={{display:'flex',alignItems:'center',padding:'8px 12px',borderTop:'1px solid var(--border)',gap:4,background:'var(--bg)'}}>
+                    <div style={{flex:1}}>
+                      <span style={{fontSize:13,fontWeight:500}}>{k}</span>
+                      <span style={{fontSize:10,color:'var(--text-dim)',marginLeft:6}}>{count} séance{count>1?'s':''}</span>
+                    </div>
+                    <span style={{fontSize:13,fontWeight:700,color:'var(--green-dk)',width:68,textAlign:'right'}}>{fmtE(total)}</span>
+                    {hasFees && fee != null && <>
+                      <span style={{fontSize:12,color:'#e55',fontWeight:600,width:60,textAlign:'right'}}>−{fmtE(fee)}</span>
+                      <span style={{fontSize:13,fontWeight:700,color:'var(--text)',width:68,textAlign:'right'}}>{fmtE(net)}</span>
+                    </>}
+                    {hasFees && fee == null && <>
+                      <span style={{width:60}}/>
+                      <span style={{fontSize:13,fontWeight:700,color:'var(--text)',width:68,textAlign:'right'}}>{fmtE(total)}</span>
+                    </>}
                   </div>
-                  <span style={{fontSize:13,fontWeight:700,color:'var(--green-dk)',width:72,textAlign:'right'}}>{fmtE(total)}</span>
-                  {hasFees && fee != null && <>
-                    <span style={{fontSize:12,color:'#e55',fontWeight:600,width:64,textAlign:'right'}}>−{fmtE(fee)}</span>
-                    <span style={{fontSize:13,fontWeight:700,color:'var(--text)',width:72,textAlign:'right'}}>{fmtE(net)}</span>
-                  </>}
-                  {hasFees && fee == null && <>
-                    <span style={{width:64}}/>
-                    <span style={{fontSize:13,fontWeight:700,color:'var(--text)',width:72,textAlign:'right'}}>{fmtE(total)}</span>
+                ))}
+                <div style={{display:'flex',alignItems:'center',padding:'8px 12px',borderTop:'2px solid var(--border)',gap:4,background:'var(--card)'}}>
+                  <div style={{flex:1,fontSize:12,fontWeight:700,color:'var(--text)',textTransform:'uppercase',letterSpacing:'0.04em'}}>Total</div>
+                  <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:600,color:'var(--green-dk)',width:68,textAlign:'right'}}>{fmtE(totEncaisse)}</span>
+                  {hasFees && <>
+                    <span style={{fontSize:13,color:'#e55',fontWeight:700,width:60,textAlign:'right'}}>−{fmtE(totFrais)}</span>
+                    <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:600,color:'var(--text)',width:68,textAlign:'right'}}>{fmtE(totNet)}</span>
                   </>}
                 </div>
-              ))}
-              {hasFees && (
-                <div style={{padding:'6px 12px',background:'var(--card)',fontSize:10,color:'var(--text-dim)'}}>
-                  Sumup 1,75% · Indy (0,8% + 0,15€/séance) × TVA 20%
-                </div>
-              )}
+                {hasFees && (
+                  <div style={{padding:'5px 12px',background:'var(--card)',borderTop:'1px solid var(--border)',fontSize:10,color:'var(--text-dim)'}}>
+                    Sumup 1,75% · Indy (0,8% + 0,15€/séance) × TVA 20%
+                  </div>
+                )}
+              </>}
             </div>
           );
         })()}
