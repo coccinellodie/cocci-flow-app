@@ -1457,7 +1457,9 @@
         const r = await fetch(PROXY_URL + '/finances/entries/' + editEntry.id, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
         if (!r.ok) throw new Error('HTTP ' + r.status);
         const updated = await r.json();
-        setEntries(prev => prev.map(e => e.id === updated.id ? updated : e));
+        // Notion ne renvoie pas les relations immédiatement — on les injecte depuis le formulaire
+        const merged = { ...updated, catIds: editForm.catId ? [editForm.catId] : (updated.catIds||[]), provIds: editForm.provId ? [editForm.provId] : (updated.provIds||[]) };
+        setEntries(prev => prev.map(e => e.id === merged.id ? merged : e));
         setEditEntry(null);
       } catch(e) { alert('Erreur : ' + e.message); }
       finally { setSaving(false); }
