@@ -1962,16 +1962,16 @@
     useEffect(() => {
       if (!PROXY_URL) return;
 
-      // visibilitychange : onglet revient au premier plan
-      const onVisible = () => { if (document.visibilityState === 'visible') forceRefresh(); };
-      // focus : fenêtre reprend le focus (iOS PWA, retour depuis autre app)
-      const onFocus = () => forceRefresh();
+      // visibilitychange : onglet revient au premier plan → toujours forcer
+      const onVisible = () => { if (document.visibilityState === 'visible') forceRefresh(true); };
+      // focus : fenêtre reprend le focus (iOS PWA, retour depuis autre app) → toujours forcer
+      const onFocus = () => forceRefresh(true);
 
       document.addEventListener('visibilitychange', onVisible);
       window.addEventListener('focus', onFocus);
 
-      // Intervalle de 2 minutes (réduit de 5 pour plus de réactivité)
-      const interval = setInterval(() => forceRefresh(), 2 * 60 * 1000);
+      // Intervalle de 1 minute
+      const interval = setInterval(() => forceRefresh(), 60 * 1000);
 
       return () => {
         document.removeEventListener('visibilitychange', onVisible);
