@@ -1390,9 +1390,15 @@
     const [dynCats,     setDynCats]     = React.useState([]);  // {id, name} depuis Notion
     const [dynProvs,    setDynProvs]    = React.useState([]);  // {id, name} depuis Notion
     const [search,      setSearch]      = React.useState('');
-    const [abonnements, setAbonnements] = React.useState([]);
-    const [showAbo,     setShowAbo]     = React.useState(true);
-    const [showAutres,  setShowAutres]  = React.useState(false);
+    const [abonnements,  setAbonnements]  = React.useState([]);
+    const [showAbo,      setShowAbo]      = React.useState(false);
+    const [showAutres,   setShowAutres]   = React.useState(false);
+    const [editAbo,      setEditAbo]      = React.useState(null);
+    const [editAboForm,  setEditAboForm]  = React.useState({});
+    const [showAboForm,  setShowAboForm]  = React.useState(false);
+    const [savingAbo,    setSavingAbo]    = React.useState(false);
+    const [aboForm,      setAboForm]      = React.useState({ nom:'', montant:'', frequence:'Mensuel', methode:'Prélèvement', compte:'', statut:'Actif', renouvellement:'', fin:'' });
+    const aboOpenedAt = React.useRef(0);
 
     const load = async () => {
       setLoading(true); setError(null);
@@ -1546,74 +1552,6 @@
             <div key={i} style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontStyle:'italic',color:'var(--green-dk)',lineHeight:1.7,opacity:0.82}}>{m}</div>
           ))}
         </div>
-
-        {/* Abonnements */}
-        {(() => {
-          const actifs = abonnements.filter(a => a.statut === 'Actif');
-          const autres = abonnements.filter(a => a.statut !== 'Actif');
-          const totalMensuel = actifs.reduce((s, a) => {
-            const m = a.montant || 0;
-            if (a.frequence === 'Annuel') return s + m / 12;
-            if (a.frequence === 'Quadrimestre') return s + m / 4;
-            return s + m;
-          }, 0);
-          const compteColors = {
-            'Carte pro CdE':  { bg:'rgba(92,141,214,0.15)',  text:'#3a72c4' },
-            'Carte pro Indy': { bg:'rgba(155,107,214,0.15)', text:'#7a4bc4' },
-            'Compte pro CdE': { bg:'rgba(76,175,125,0.15)',  text:'#2d8c5e' },
-            'Compte pro Indy':{ bg:'rgba(224,120,72,0.15)',  text:'#c05a20' },
-          };
-          if (abonnements.length === 0) return null;
-          return (
-            <div style={{margin:'0 14px 18px'}}>
-              <button onClick={() => setShowAbo(v=>!v)} style={{background:'none',border:'none',padding:'0 0 10px',cursor:'pointer',width:'100%',textAlign:'left'}}>
-                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:10,letterSpacing:'0.18em',textTransform:'uppercase',color:'var(--green-dk)',opacity:0.6}}>✦ Abonnements ✦</div>
-                  <div style={{display:'flex',alignItems:'center',gap:6}}>
-                    <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:'var(--green-dk)',fontWeight:400}}>{fmtE(totalMensuel)}<span style={{fontSize:10,opacity:0.55,marginLeft:2}}>/mois</span></span>
-                    <span style={{fontSize:10,color:'var(--muted)',opacity:0.55}}>{showAbo?'▲':'▼'}</span>
-                  </div>
-                </div>
-              </button>
-              {showAbo && (
-                <div style={{borderRadius:12,border:'1px solid rgba(182,154,148,0.22)',overflow:'hidden'}}>
-                  {actifs.map((a, i) => (
-                    <div key={a.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 12px',borderBottom: i < actifs.length-1 ? '1px solid rgba(182,154,148,0.10)' : 'none',background: i%2===0 ? 'rgba(182,154,148,0.04)' : 'transparent'}}>
-                      <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontSize:13,fontWeight:500,color:'var(--text)',marginBottom:3,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{a.nom}</div>
-                        <div style={{display:'flex',gap:4,flexWrap:'wrap',alignItems:'center'}}>
-                          {a.compte && (() => { const c = compteColors[a.compte]||{bg:'rgba(128,128,128,0.12)',text:'var(--muted)'}; return <span style={{fontSize:10,padding:'2px 7px',borderRadius:10,background:c.bg,color:c.text,fontWeight:600}}>{a.compte}</span>; })()}
-                          <span style={{fontSize:10,color:'var(--muted)',opacity:0.75}}>{a.methode}</span>
-                          {a.renouvellement && <span style={{fontSize:10,color:'var(--muted)',opacity:0.55}}>↻ {fmtD(a.renouvellement)}</span>}
-                        </div>
-                      </div>
-                      <div style={{textAlign:'right',flexShrink:0,marginLeft:10}}>
-                        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:400,color:'var(--green-dk)'}}>{fmtE(a.montant)}</div>
-                        <div style={{fontSize:10,color:'var(--muted)',opacity:0.6}}>{(a.frequence||'').toLowerCase()}</div>
-                      </div>
-                    </div>
-                  ))}
-                  {autres.length > 0 && (
-                    <div style={{borderTop:'1px solid rgba(182,154,148,0.15)'}}>
-                      <button onClick={() => setShowAutres(v=>!v)} style={{background:'none',border:'none',padding:'8px 12px',cursor:'pointer',width:'100%',textAlign:'left',color:'var(--muted)',fontSize:11,opacity:0.7}}>
-                        {showAutres ? '▲' : '▼'} {autres.length} suspendu{autres.length>1?'s':''} / annulé{autres.length>1?'s':''}
-                      </button>
-                      {showAutres && autres.map((a) => (
-                        <div key={a.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 12px',opacity:0.45,borderTop:'1px solid rgba(182,154,148,0.08)'}}>
-                          <div>
-                            <div style={{fontSize:12,color:'var(--text)',textDecoration:'line-through'}}>{a.nom}</div>
-                            {a.compte && <span style={{fontSize:10,color:'var(--muted)'}}>{a.compte}</span>}
-                          </div>
-                          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:'var(--muted)'}}>{fmtE(a.montant)}</div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })()}
 
         {/* Mini graphe */}
         <div style={{display:'flex',alignItems:'flex-end',gap:2,height:56,padding:'0 14px',marginBottom:12}}>
@@ -1788,6 +1726,209 @@
             );
           })}
         </div>
+
+        {/* ── Abonnements (bas de page) ─────────────────── */}
+        {(() => {
+          const actifs = abonnements.filter(a => a.statut === 'Actif');
+          const autres = abonnements.filter(a => a.statut !== 'Actif');
+          const totalMensuel = actifs.reduce((s, a) => {
+            const m = a.montant || 0;
+            if (a.frequence === 'Annuel') return s + m / 12;
+            if (a.frequence === 'Quadrimestre') return s + m / 4;
+            return s + m;
+          }, 0);
+          const CC = {
+            'Carte pro CdE':  { bg:'rgba(92,141,214,0.15)',  tx:'#3a72c4' },
+            'Carte pro Indy': { bg:'rgba(155,107,214,0.15)', tx:'#7a4bc4' },
+            'Compte pro CdE': { bg:'rgba(76,175,125,0.15)',  tx:'#2d8c5e' },
+            'Compte pro Indy':{ bg:'rgba(224,120,72,0.15)',  tx:'#c05a20' },
+          };
+          const openEditAbo = (a) => {
+            aboOpenedAt.current = Date.now();
+            setEditAbo(a);
+            setEditAboForm({ nom:a.nom, montant:String(a.montant??''), frequence:a.frequence||'Mensuel', methode:a.methode||'Prélèvement', compte:a.compte||'', statut:a.statut||'Actif', renouvellement:a.renouvellement||'', fin:a.fin||'' });
+          };
+          const saveAbo = async () => {
+            if (!aboForm.nom) return;
+            setSavingAbo(true);
+            try {
+              const body = { nom:aboForm.nom, montant:aboForm.montant?parseFloat(aboForm.montant):null, frequence:aboForm.frequence, methode:aboForm.methode, compte:aboForm.compte||undefined, statut:aboForm.statut, renouvellement:aboForm.renouvellement||undefined, fin:aboForm.fin||undefined };
+              const r = await fetch(PROXY_URL+'/finances/abonnements',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+              if(!r.ok) throw new Error('HTTP '+r.status);
+              const created = await r.json();
+              setAbonnements(prev=>[...prev,created]);
+              setShowAboForm(false);
+              setAboForm({ nom:'', montant:'', frequence:'Mensuel', methode:'Prélèvement', compte:'', statut:'Actif', renouvellement:'', fin:'' });
+            } catch(e){ alert('Erreur : '+e.message); }
+            finally{ setSavingAbo(false); }
+          };
+          const updateAbo = async () => {
+            if (!editAboForm.nom) return;
+            setSavingAbo(true);
+            try {
+              const body = { nom:editAboForm.nom, montant:editAboForm.montant?parseFloat(editAboForm.montant):null, frequence:editAboForm.frequence, methode:editAboForm.methode, compte:editAboForm.compte, statut:editAboForm.statut, renouvellement:editAboForm.renouvellement||undefined, fin:editAboForm.fin||undefined };
+              const r = await fetch(PROXY_URL+'/finances/abonnements/'+editAbo.id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+              if(!r.ok) throw new Error('HTTP '+r.status);
+              const updated = await r.json();
+              setAbonnements(prev=>prev.map(a=>a.id===updated.id?updated:a));
+              setEditAbo(null);
+            } catch(e){ alert('Erreur : '+e.message); }
+            finally{ setSavingAbo(false); }
+          };
+          const deleteAbo = async () => {
+            if (!window.confirm('Supprimer cet abonnement ?')) return;
+            setSavingAbo(true);
+            try {
+              await fetch(PROXY_URL+'/finances/abonnements/'+editAbo.id,{method:'DELETE'});
+              setAbonnements(prev=>prev.filter(a=>a.id!==editAbo.id));
+              setEditAbo(null);
+            } catch(e){ alert('Erreur : '+e.message); }
+            finally{ setSavingAbo(false); }
+          };
+          const AboFieldStyle = { width:'100%',border:'1px solid var(--border)',borderRadius:8,padding:'8px 10px',fontSize:14,color:'var(--text)',background:'var(--bg)',boxSizing:'border-box' };
+          const AboSelStyle   = { width:'100%',border:'1px solid var(--border)',borderRadius:8,padding:'7px 8px',fontSize:13,color:'var(--text)',background:'var(--bg)' };
+          const AboForm = ({f,setF}) => (
+            <>
+              <div style={{marginBottom:10}}>
+                <div style={{fontSize:11,color:'var(--text-dim)',fontWeight:600,textTransform:'uppercase',marginBottom:3}}>Nom</div>
+                <input value={f.nom} onChange={e=>setF(p=>({...p,nom:e.target.value}))} placeholder="ex. Spotify" style={AboFieldStyle}/>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:10}}>
+                <div>
+                  <div style={{fontSize:11,color:'var(--text-dim)',fontWeight:600,textTransform:'uppercase',marginBottom:3}}>Montant (€)</div>
+                  <input type="number" value={f.montant} onChange={e=>setF(p=>({...p,montant:e.target.value}))} placeholder="12.99" style={AboFieldStyle}/>
+                </div>
+                <div>
+                  <div style={{fontSize:11,color:'var(--text-dim)',fontWeight:600,textTransform:'uppercase',marginBottom:3}}>Fréquence</div>
+                  <select value={f.frequence} onChange={e=>setF(p=>({...p,frequence:e.target.value}))} style={AboSelStyle}>
+                    {['Mensuel','Annuel','Quadrimestre','Hebdomadaire'].map(v=><option key={v}>{v}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:10}}>
+                <div>
+                  <div style={{fontSize:11,color:'var(--text-dim)',fontWeight:600,textTransform:'uppercase',marginBottom:3}}>Méthode</div>
+                  <select value={f.methode} onChange={e=>setF(p=>({...p,methode:e.target.value}))} style={AboSelStyle}>
+                    {['Prélèvement','Apple Pay','Paypal','Carte pro','Virement'].map(v=><option key={v}>{v}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <div style={{fontSize:11,color:'var(--text-dim)',fontWeight:600,textTransform:'uppercase',marginBottom:3}}>Compte / Carte</div>
+                  <select value={f.compte} onChange={e=>setF(p=>({...p,compte:e.target.value}))} style={AboSelStyle}>
+                    <option value=''>—</option>
+                    {['Carte pro CdE','Carte pro Indy','Compte pro CdE','Compte pro Indy'].map(v=><option key={v}>{v}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:10}}>
+                <div>
+                  <div style={{fontSize:11,color:'var(--text-dim)',fontWeight:600,textTransform:'uppercase',marginBottom:3}}>Statut</div>
+                  <select value={f.statut} onChange={e=>setF(p=>({...p,statut:e.target.value}))} style={AboSelStyle}>
+                    {['Actif','Suspendu','Annulé','Essai gratuit','Expiré'].map(v=><option key={v}>{v}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <div style={{fontSize:11,color:'var(--text-dim)',fontWeight:600,textTransform:'uppercase',marginBottom:3}}>1er prélèvement</div>
+                  <input type="date" value={f.renouvellement} onChange={e=>setF(p=>({...p,renouvellement:e.target.value}))} style={AboFieldStyle}/>
+                </div>
+              </div>
+              <div style={{marginBottom:14}}>
+                <div style={{fontSize:11,color:'var(--text-dim)',fontWeight:600,textTransform:'uppercase',marginBottom:3}}>Date de fin <span style={{fontWeight:400,opacity:0.6}}>(paiement en plusieurs fois)</span></div>
+                <input type="date" value={f.fin} onChange={e=>setF(p=>({...p,fin:e.target.value}))} style={AboFieldStyle}/>
+              </div>
+            </>
+          );
+          return (
+            <>
+              <div style={{margin:'8px 14px 16px'}}>
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:showAbo?10:0}}>
+                  <button onClick={()=>setShowAbo(v=>!v)} style={{background:'none',border:'none',padding:'4px 0',cursor:'pointer',display:'flex',alignItems:'center',gap:6}}>
+                    <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:10,letterSpacing:'0.18em',textTransform:'uppercase',color:'var(--green-dk)',opacity:0.6}}>✦ Abonnements ✦</span>
+                    <span style={{fontSize:10,color:'var(--muted)',opacity:0.5}}>{showAbo?'▲':'▼'}</span>
+                  </button>
+                  <div style={{display:'flex',alignItems:'center',gap:8}}>
+                    {abonnements.length>0 && <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:'var(--green-dk)',opacity:0.8}}>{fmtE(totalMensuel)}<span style={{fontSize:10,opacity:0.55,marginLeft:2}}>/mois</span></span>}
+                    <button onClick={()=>setShowAboForm(true)} style={{background:'var(--green-dk)',border:'none',borderRadius:7,padding:'5px 10px',fontSize:12,fontWeight:600,color:'white',cursor:'pointer',fontFamily:"'Cormorant Garamond',serif"}}>+ Ajouter</button>
+                  </div>
+                </div>
+                {showAbo && (
+                  <div style={{borderRadius:12,border:'1px solid rgba(182,154,148,0.22)',overflow:'hidden'}}>
+                    {actifs.length===0 && <div style={{padding:'14px 12px',fontSize:12,color:'var(--muted)',textAlign:'center'}}>Aucun abonnement actif</div>}
+                    {actifs.map((a,i)=>(
+                      <button key={a.id} onClick={()=>openEditAbo(a)} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 12px',borderBottom:i<actifs.length-1?'1px solid rgba(182,154,148,0.10)':'none',background:i%2===0?'rgba(182,154,148,0.04)':'transparent',width:'100%',textAlign:'left',border:'none',cursor:'pointer',WebkitTapHighlightColor:'rgba(0,0,0,0.05)'}}>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:13,fontWeight:500,color:'var(--text)',marginBottom:3,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{a.nom}</div>
+                          <div style={{display:'flex',gap:4,flexWrap:'wrap',alignItems:'center'}}>
+                            {a.compte&&<span style={{fontSize:10,padding:'2px 7px',borderRadius:10,background:(CC[a.compte]||{bg:'rgba(128,128,128,0.12)'}).bg,color:(CC[a.compte]||{tx:'var(--muted)'}).tx,fontWeight:600}}>{a.compte}</span>}
+                            <span style={{fontSize:10,color:'var(--muted)',opacity:0.75}}>{a.methode}</span>
+                            {a.renouvellement&&<span style={{fontSize:10,color:'var(--muted)',opacity:0.55}}>↻ {fmtD(a.renouvellement)}</span>}
+                            {a.fin&&<span style={{fontSize:10,color:'#c06020',opacity:0.8}}>→ fin {fmtD(a.fin)}</span>}
+                          </div>
+                        </div>
+                        <div style={{textAlign:'right',flexShrink:0,marginLeft:10}}>
+                          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:'var(--green-dk)'}}>{fmtE(a.montant)}</div>
+                          <div style={{fontSize:10,color:'var(--muted)',opacity:0.6}}>{(a.frequence||'').toLowerCase()}</div>
+                        </div>
+                        <span style={{fontSize:14,color:'var(--muted)',opacity:0.35,marginLeft:6}}>›</span>
+                      </button>
+                    ))}
+                    {autres.length>0&&(
+                      <div style={{borderTop:'1px solid rgba(182,154,148,0.15)'}}>
+                        <button onClick={()=>setShowAutres(v=>!v)} style={{background:'none',border:'none',padding:'8px 12px',cursor:'pointer',width:'100%',textAlign:'left',color:'var(--muted)',fontSize:11,opacity:0.65}}>
+                          {showAutres?'▲':'▼'} {autres.length} suspendu{autres.length>1?'s':''} / inactif{autres.length>1?'s':''}
+                        </button>
+                        {showAutres&&autres.map(a=>(
+                          <button key={a.id} onClick={()=>openEditAbo(a)} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 12px',opacity:0.5,borderTop:'1px solid rgba(182,154,148,0.08)',width:'100%',textAlign:'left',border:'none',cursor:'pointer',background:'transparent'}}>
+                            <div>
+                              <div style={{fontSize:12,color:'var(--text)',textDecoration:'line-through'}}>{a.nom}</div>
+                              {a.compte&&<span style={{fontSize:10,color:'var(--muted)'}}>{a.compte}</span>}
+                            </div>
+                            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:'var(--muted)'}}>{fmtE(a.montant)}</div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Modal édition abonnement */}
+              {editAbo&&(
+                <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',display:'flex',alignItems:'flex-end',justifyContent:'center',zIndex:200}} onClick={e=>{if(e.target===e.currentTarget&&Date.now()-aboOpenedAt.current>350)setEditAbo(null);}}>
+                  <div style={{background:'var(--bg)',borderRadius:'16px 16px 0 0',padding:'20px 16px 36px',width:'100%',maxWidth:480,maxHeight:'90vh',overflowY:'auto'}}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+                      <h3 style={{margin:0,fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:400,color:'var(--green-dk)'}}>Modifier l'abonnement</h3>
+                      <button onClick={deleteAbo} disabled={savingAbo} style={{background:'none',border:'none',color:'#e55',fontSize:13,fontWeight:600,cursor:'pointer',padding:'4px 8px',opacity:savingAbo?0.5:1}}>🗑 Supprimer</button>
+                    </div>
+                    <AboForm f={editAboForm} setF={setEditAboForm}/>
+                    <div style={{display:'flex',gap:8}}>
+                      <button onClick={()=>setEditAbo(null)} style={{flex:1,background:'var(--border)',border:'none',borderRadius:8,padding:'10px',fontSize:14,cursor:'pointer',color:'var(--text)'}}>Annuler</button>
+                      <button onClick={updateAbo} disabled={savingAbo||!editAboForm.nom} style={{flex:2,background:'var(--green-dk)',border:'none',borderRadius:8,padding:'10px',fontSize:14,fontWeight:700,color:'white',cursor:'pointer',opacity:(savingAbo||!editAboForm.nom)?0.5:1}}>
+                        {savingAbo?'⏳ Envoi…':'Enregistrer'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Modal création abonnement */}
+              {showAboForm&&(
+                <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',display:'flex',alignItems:'flex-end',justifyContent:'center',zIndex:200}} onClick={e=>{if(e.target===e.currentTarget)setShowAboForm(false);}}>
+                  <div style={{background:'var(--bg)',borderRadius:'16px 16px 0 0',padding:'20px 16px 36px',width:'100%',maxWidth:480,maxHeight:'90vh',overflowY:'auto'}}>
+                    <h3 style={{margin:'0 0 16px',fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:400,color:'var(--green-dk)'}}>Nouvel abonnement</h3>
+                    <AboForm f={aboForm} setF={setAboForm}/>
+                    <div style={{display:'flex',gap:8}}>
+                      <button onClick={()=>setShowAboForm(false)} style={{flex:1,background:'var(--border)',border:'none',borderRadius:8,padding:'10px',fontSize:14,cursor:'pointer',color:'var(--text)'}}>Annuler</button>
+                      <button onClick={saveAbo} disabled={savingAbo||!aboForm.nom} style={{flex:2,background:'var(--green-dk)',border:'none',borderRadius:8,padding:'10px',fontSize:14,fontWeight:700,color:'white',cursor:'pointer',opacity:(savingAbo||!aboForm.nom)?0.5:1}}>
+                        {savingAbo?'⏳ Envoi…':'Ajouter dans Notion'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          );
+        })()}
 
         {/* Modal ajout */}
         {/* Modal édition */}
