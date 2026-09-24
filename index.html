@@ -583,11 +583,10 @@
   function SlotSection({ slot, tasks, allCats, onToggle, onMenu, onAddToSlot, dragRef, onDrop }) {
     const [open, setOpen] = useState(true);
     const [over, setOver] = useState(false);
-    const t = todayKey();
     const undone    = tasks.filter(tk => !tk.done);
-    const doneToday = tasks.filter(tk => tk.done && tk.doneDate===t);
-    const allDone   = undone.length===0 && doneToday.length>0;
-    const visible   = [...undone, ...doneToday];
+    const doneTasks = tasks.filter(tk => tk.done);
+    const allDone   = undone.length===0 && doneTasks.length>0;
+    const visible   = [...undone, ...doneTasks];
 
     const handleDragOver = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setOver(true); };
     const handleDragLeave = (e) => { if (!e.currentTarget.contains(e.relatedTarget)) setOver(false); };
