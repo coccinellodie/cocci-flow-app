@@ -2250,26 +2250,18 @@
     // Auto-escalade : tâches non faites dont la date est passée → backlog Haute priorité + sync Notion
     useEffect(() => {
       const t = todayKey();
-      const toSync = [];
       setTasks(prev => {
         let changed = false;
         const updated = prev.map(task => {
           if (!task.done && task.scheduledDate && task.scheduledDate < t) {
             changed = true;
-            const upd = { ...task, scheduledDate: null, priority: 'Haute' };
-            toSync.push(upd);
-            return upd;
+            // On met la tâche en Haute priorité dans le backlog local,
+            // mais on NE sync PAS vers Notion pour préserver la date d'origine.
+            return { ...task, scheduledDate: null, priority: 'Haute' };
           }
           return task;
         });
-        if (!changed) return prev;
-        // Sync vers Notion sans bloquer le rendu
-        if (PROXY_URL) {
-          toSync.forEach(task => {
-            if (task.notionId) notionUpdate(task.notionId, task).catch(() => {});
-          });
-        }
-        return updated;
+        return changed ? updated : prev;
       });
     }, []);
 
