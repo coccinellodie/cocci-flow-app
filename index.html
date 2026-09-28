@@ -1102,6 +1102,89 @@
   }
 
   // ── DONE VIEW ──────────────────────────────────────
+  // ── CLÔTURE DE JOURNÉE ─────────────────────────────
+  function ClosingSheet({ tasks, selectedDate, onPlanify, onClose }) {
+    const doneTasks    = tasks.filter(t => t.scheduledDate===selectedDate && t.done);
+    const slippedTasks = tasks.filter(t => t.scheduledDate===selectedDate && !t.done);
+    const [choices, setChoices] = React.useState(() => {
+      const c = {}; slippedTasks.forEach(t => { c[t.id]='garder'; }); return c;
+    });
+
+    const apply = () => {
+      slippedTasks.forEach(t => {
+        const c = choices[t.id];
+        if (c==='demain')  onPlanify(t.id, addDays(1), t.slot);
+        else if (c==='backlog') onPlanify(t.id, null, t.slot);
+      });
+      onClose();
+    };
+
+    const CHOICE_OPTS = [
+      { id:'garder',  label:'Garder' },
+      { id:'demain',  label:'→ Demain' },
+      { id:'backlog', label:'→ Backlog' },
+    ];
+
+    return (
+      <div style={{position:'fixed',inset:0,background:'rgba(18,30,18,0.55)',display:'flex',alignItems:'flex-end',justifyContent:'center',zIndex:300}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+        <div style={{background:'var(--bg)',borderRadius:'20px 20px 0 0',padding:'24px 16px 50px',width:'100%',maxWidth:480,maxHeight:'88vh',overflowY:'auto'}}>
+          <div style={{textAlign:'center',marginBottom:22}}>
+            <div style={{fontSize:32,marginBottom:4}}>🌙</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:23,color:'var(--green-dk)',fontWeight:400}}>Clôture de journée</div>
+            <div style={{fontSize:12,color:'var(--muted)',marginTop:4,opacity:0.7}}>{fmtDateLabel(selectedDate)}</div>
+          </div>
+
+          {doneTasks.length>0&&(
+            <div style={{marginBottom:20}}>
+              <div style={{fontSize:10,color:'var(--green-dk)',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:10,opacity:0.8}}>
+                ✓ Accompli — {doneTasks.length} tâche{doneTasks.length>1?'s':''}
+              </div>
+              {doneTasks.map(t=>(
+                <div key={t.id} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 12px',background:'rgba(60,140,80,0.07)',borderRadius:10,marginBottom:5}}>
+                  <span style={{color:'var(--green-dk)',fontSize:13}}>✓</span>
+                  <span style={{fontSize:13,color:'var(--muted)',textDecoration:'line-through',opacity:0.65,flex:1}}>{t.title}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {slippedTasks.length>0&&(
+            <div style={{marginBottom:20}}>
+              <div style={{fontSize:10,color:'var(--rose-dk)',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:10,opacity:0.8}}>
+                ↩ À rattraper — {slippedTasks.length} tâche{slippedTasks.length>1?'s':''}
+              </div>
+              {slippedTasks.map(t=>(
+                <div key={t.id} style={{marginBottom:10,padding:'10px 12px',border:'1px solid var(--border)',borderRadius:12}}>
+                  <div style={{fontSize:13,color:'var(--text)',marginBottom:8,lineHeight:1.4,fontWeight:500}}>{t.title}</div>
+                  <div style={{display:'flex',gap:6}}>
+                    {CHOICE_OPTS.map(opt=>(
+                      <button key={opt.id} onClick={()=>setChoices(p=>({...p,[t.id]:opt.id}))}
+                        style={{flex:1,padding:'7px 4px',borderRadius:8,border:'1.5px solid '+(choices[t.id]===opt.id?'var(--green-dk)':'var(--border)'),background:choices[t.id]===opt.id?'rgba(60,140,80,0.09)':'transparent',color:choices[t.id]===opt.id?'var(--green-dk)':'var(--muted)',fontSize:11,cursor:'pointer',fontWeight:choices[t.id]===opt.id?700:400,transition:'all 0.15s'}}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {doneTasks.length===0&&slippedTasks.length===0&&(
+            <div style={{textAlign:'center',padding:'20px 0',color:'var(--muted)',fontSize:13,opacity:0.7}}>
+              Rien de planifié pour ce jour. 🌱
+            </div>
+          )}
+
+          <button onClick={apply}
+            style={{width:'100%',background:'var(--green-dk)',border:'none',borderRadius:12,padding:'14px',fontSize:15,fontWeight:700,color:'white',cursor:'pointer',marginBottom:10,fontFamily:"'Cormorant Garamond',serif",letterSpacing:'0.05em'}}>
+            Boucle fermée ✓
+          </button>
+          <button onClick={onClose} style={{width:'100%',background:'transparent',border:'none',padding:'10px',fontSize:13,color:'var(--muted)',cursor:'pointer'}}>Annuler</button>
+        </div>
+      </div>
+    );
+  }
+
   function DoneView({ tasks, allCats, onToggle, onMenu }) {
     const [showHistory, setShowHistory] = useState(false);
 
@@ -2311,6 +2394,9 @@
     const [timer,      setTimer]      = useState(null);
     const [syncing,      setSyncing]      = useState(false);
     const [energyFilter, setEnergyFilter] = useState(null); // pas persisté : toujours neutre à l'ouverture
+    const [showClosingSheet, setShowClosingSheet] = useState(false);
+    const [voiceState, setVoiceState] = useState(null); // null | 'listening' | 'confirm'
+    const [voiceTitle, setVoiceTitle] = useState('');
     const timerRef = useRef(null);
     const dragRef   = useRef(null);
 
@@ -2634,6 +2720,38 @@
 
     const openAdd = (slot=null, date=null) => { setDefSlot(slot); setDefDate(date); setEditTask(null); setPrefill(''); setShowForm(true); };
 
+    const startVoice = () => {
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SR) { alert("La reconnaissance vocale n'est pas disponible sur ce navigateur."); return; }
+      const rec = new SR();
+      rec.lang = 'fr-FR';
+      rec.interimResults = false;
+      rec.maxAlternatives = 1;
+      rec.onstart = () => setVoiceState('listening');
+      rec.onresult = (e) => {
+        const transcript = e.results[0][0].transcript;
+        setVoiceTitle(transcript);
+        setVoiceState('confirm');
+      };
+      rec.onerror = () => setVoiceState(null);
+      rec.onend = () => { if (voiceState==='listening') setVoiceState(null); };
+      rec.start();
+    };
+
+    const saveVoiceTask = () => {
+      if (!voiceTitle.trim()) { setVoiceState(null); return; }
+      const newTask = {
+        id: Date.now().toString(36)+Math.random().toString(36).slice(2),
+        title: voiceTitle.trim(),
+        done: false, priority:'Normale', categories:[], duration:30,
+        scheduledDate: selectedDate, slot:'Flexible',
+        energy:'Moyenne', notes:'', doneDate:null,
+      };
+      handleSaveTask(newTask, []);
+      setVoiceState(null);
+      setVoiceTitle('');
+    };
+
     return (
       <SubTaskCtx.Provider value={{ subTasksMap, addSubTask, toggleSubTask, deleteSubTask, updateSubTask }}>
       <div style={{paddingTop: timer ? 56 : 0}}>
@@ -2689,6 +2807,14 @@
         )}
 
         {tab==='day'     && <DayView tasks={tasks} allCats={allCats} onToggle={handleToggle} onMenu={setCtxTask} onAddToSlot={s=>openAdd(s,selectedDate)} selectedDate={selectedDate} dragRef={dragRef} onDrop={handleMove} energyFilter={energyFilter} />}
+        {tab==='day' && (
+          <div style={{display:'flex',justifyContent:'center',padding:'12px 16px 140px'}}>
+            <button onClick={()=>setShowClosingSheet(true)}
+              style={{background:'transparent',border:'1.5px solid var(--border)',borderRadius:20,padding:'9px 22px',fontSize:12,color:'var(--muted)',cursor:'pointer',fontFamily:"'DM Sans',sans-serif",display:'flex',alignItems:'center',gap:6,letterSpacing:'0.02em',opacity:0.75}}>
+              🌙 Fermer la journée
+            </button>
+          </div>
+        )}
         {tab==='backlog' && <BacklogView tasks={tasks} allCats={allCats} onToggle={handleToggle} onMenu={setCtxTask} dragRef={dragRef} onDrop={handleMove} energyFilter={energyFilter} />}
         {tab==='fait'    && <DoneView tasks={tasks} allCats={allCats} onToggle={handleToggle} onMenu={setCtxTask} />}
         {tab==='finances' && <FinancesView />}
@@ -2704,6 +2830,12 @@
 
         {tab !== 'finances' && (
           <div className="fab-area">
+            {tab==='day' && (
+              <button className={`fab-voice${voiceState==='listening'?' listening':''}`} onClick={startVoice} title="Capture rapide">
+                🎙
+                {voiceState==='listening' && <span className="fab-voice-label">Écoute…</span>}
+              </button>
+            )}
             <button className="fab" onClick={()=>tab==='day'?openAdd(null,selectedDate):openAdd()}>+</button>
           </div>
         )}
@@ -2739,6 +2871,44 @@
             defaultSlot={defSlot}
             defaultDate={defDate}
           />
+        )}
+
+        {showClosingSheet && (
+          <ClosingSheet
+            tasks={tasks}
+            selectedDate={selectedDate}
+            onPlanify={handlePlanify}
+            onClose={() => setShowClosingSheet(false)}
+          />
+        )}
+
+        {voiceState==='listening' && (
+          <div style={{position:'fixed',inset:0,background:'rgba(18,30,18,0.6)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',zIndex:400}} onClick={()=>setVoiceState(null)}>
+            <div style={{fontSize:56,marginBottom:16,animation:'pulse 1s ease-in-out infinite'}}>🎙</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,color:'white',marginBottom:8}}>J'écoute…</div>
+            <div style={{fontSize:12,color:'rgba(255,255,255,0.6)'}}>Tap pour annuler</div>
+          </div>
+        )}
+
+        {voiceState==='confirm' && (
+          <div style={{position:'fixed',inset:0,background:'rgba(18,30,18,0.55)',display:'flex',alignItems:'flex-end',justifyContent:'center',zIndex:400}} onClick={e=>e.target===e.currentTarget&&setVoiceState(null)}>
+            <div style={{background:'var(--bg)',borderRadius:'20px 20px 0 0',padding:'24px 16px 50px',width:'100%',maxWidth:480}}>
+              <div style={{textAlign:'center',marginBottom:18}}>
+                <div style={{fontSize:28,marginBottom:4}}>🎙</div>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:'var(--green-dk)'}}>Capture rapide</div>
+              </div>
+              <textarea
+                value={voiceTitle}
+                onChange={e=>setVoiceTitle(e.target.value)}
+                rows={3}
+                style={{width:'100%',boxSizing:'border-box',padding:'12px',borderRadius:10,border:'1.5px solid var(--border)',background:'var(--surface)',color:'var(--text)',fontSize:15,fontFamily:"'DM Sans',sans-serif",resize:'none',marginBottom:14}}
+              />
+              <div style={{display:'flex',gap:10}}>
+                <button onClick={()=>setVoiceState(null)} style={{flex:1,background:'var(--border)',border:'none',borderRadius:10,padding:'13px',fontSize:14,cursor:'pointer',color:'var(--text)'}}>Annuler</button>
+                <button onClick={saveVoiceTask} style={{flex:2,background:'var(--green-dk)',border:'none',borderRadius:10,padding:'13px',fontSize:14,fontWeight:700,color:'white',cursor:'pointer',fontFamily:"'Cormorant Garamond',serif",letterSpacing:'0.03em'}}>Créer la tâche ✓</button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
       </SubTaskCtx.Provider>
