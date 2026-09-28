@@ -930,7 +930,10 @@
     const t = selectedDate;
     const scheduled = tasks.filter(tk => tk.scheduledDate===t)
       .sort((a, b) => (b.createdAt||'').localeCompare(a.createdAt||''));
-    const filterEnergy = (list) => energyFilter ? list.filter(tk => tk.energy === energyFilter) : list;
+    // Énergie filtre les tâches non-faites uniquement — les tâches cochées restent toujours visibles
+    const filterEnergy = (list) => energyFilter
+      ? list.filter(tk => tk.done || tk.energy === energyFilter)
+      : list;
     const hasAny = scheduled.length > 0;
     return (
       <div className="content">
@@ -942,7 +945,7 @@
         ) : (
           SLOTS.map(slot => (
             <SlotSection key={slot.id} slot={slot} allCats={allCats}
-              tasks={filterEnergy(scheduled.filter(tk => tk.slot===slot.id))}
+              tasks={filterEnergy(scheduled.filter(tk => (tk.slot||'Flexible')===slot.id))}
               onToggle={onToggle} onMenu={onMenu} onAddToSlot={onAddToSlot}
               dragRef={dragRef} onDrop={onDrop} selectedDate={t}
             />
@@ -1345,35 +1348,27 @@
   }
 
   function DoneView({ tasks, allCats, onToggle, onMenu }) {
-    const [showHistory, setShowHistory] = useState(false);
-
     const today = todayKey();
     const yDay  = ydayKey();
 
-    const allDone   = tasks.filter(tk => tk.done).sort((a,b) => (b.doneDate||'').localeCompare(a.doneDate||''));
-    // Filtre strict : seules les tâches cochées aujourd'hui apparaissent dans la section "aujourd'hui"
-    const todayDone   = allDone.filter(t => t.doneDate === today);
-    // Historique : tâches avec une date connue différente d'aujourd'hui
-    const histDone    = allDone.filter(t => t.doneDate && t.doneDate !== today);
-    // Tâches sans date (cochées avant que l'app ne trackait les dates) → bottom de l'historique
-    const undatedDone = allDone.filter(t => !t.doneDate);
-    const total       = todayDone.length;
+    const allDone = tasks.filter(tk => tk.done).sort((a,b) => (b.doneDate||'').localeCompare(a.doneDate||''));
+    const total   = allDone.filter(t => t.doneDate === today).length;
 
-    // Regrouper historique par date (uniquement les dates valides)
+    // Regrouper toutes les tâches faites par date (le plus récent en premier)
     const byDate = {};
-    histDone.forEach(t => {
-      const k = t.doneDate;
+    allDone.forEach(t => {
+      const k = t.doneDate || '__sans_date__';
       if (!byDate[k]) byDate[k] = [];
       byDate[k].push(t);
     });
     const dates = Object.keys(byDate).sort((a,b) => b.localeCompare(a));
 
     const dayLabel = (key) => {
-      if (!key) return '';
+      if (key === '__sans_date__') return 'Avant';
       if (key === today) return "Aujourd'hui";
       if (key === yDay)  return 'Hier';
       const d = new Date(key + 'T12:00:00');
-      if (isNaN(d.getTime())) return '';
+      if (isNaN(d.getTime())) return key;
       return `${DAY_FR[d.getDay()]} ${d.getDate()} ${MON_FR[d.getMonth()]}`;
     };
 
@@ -1396,51 +1391,27 @@
           <div className="done-hero-message">{heroMessage()}</div>
         </div>
 
-        {/* Tâches d'aujourd'hui */}
-        {todayDone.length === 0 && (
+        {allDone.length === 0 && (
           <div className="empty" style={{paddingTop:0}}>
-            <div className="empty-text">Rien de coché aujourd'hui encore.<br/>Coche ta première tâche 🌿</div>
+            <div className="empty-text">Rien de coché encore.<br/>Coche ta première tâche 🌿</div>
           </div>
         )}
-        {todayDone.map(t => (
-          <TaskCard key={t.id} task={t} allCats={allCats} onToggle={onToggle} onMenu={onMenu} />
-        ))}
 
-        {/* Historique complet (fermé par défaut) */}
-        {(histDone.length > 0 || undatedDone.length > 0) && (
-          <div style={{marginTop:20}}>
-            <div
-              onClick={() => setShowHistory(o=>!o)}
-              style={{display:'flex',alignItems:'center',gap:8,padding:'12px 0',cursor:'pointer',userSelect:'none',WebkitTapHighlightColor:'transparent',borderTop:'1px solid var(--border)'}}
-            >
-              <span style={{fontSize:11,fontWeight:500,textTransform:'uppercase',letterSpacing:'0.12em',color:'var(--muted)'}}>Tout l'historique</span>
-              <span style={{fontSize:12,color:'var(--muted)',background:'var(--soft)',borderRadius:10,padding:'1px 7px'}}>{histDone.length + undatedDone.length}</span>
-              <span style={{color:'var(--muted)',fontSize:13,marginLeft:'auto',transition:'transform 0.2s',display:'inline-block',transform:showHistory?'rotate(180deg)':'none'}}>⌄</span>
+        {/* Trace chronologique complète — toujours visible */}
+        {dates.map(dateKey => (
+          <div key={dateKey} className="done-day-group">
+            <div className="done-day-header">
+              <span className="done-day-label"
+                style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',color:dateKey===today?'var(--green-dk)':'var(--muted)'}}>
+                {dayLabel(dateKey)}
+              </span>
+              <span className="done-day-count">{byDate[dateKey].length}</span>
             </div>
-            {showHistory && dates.map(dateKey => (
-              <div key={dateKey} className="done-day-group">
-                <div className="done-day-header">
-                  <span className="done-day-label">{dayLabel(dateKey)}</span>
-                  <span className="done-day-count">{byDate[dateKey].length}</span>
-                </div>
-                {byDate[dateKey].map(t => (
-                  <TaskCard key={t.id} task={t} allCats={allCats} onToggle={onToggle} onMenu={onMenu} />
-                ))}
-              </div>
+            {byDate[dateKey].map(t => (
+              <TaskCard key={t.id} task={t} allCats={allCats} onToggle={onToggle} onMenu={onMenu} />
             ))}
-            {showHistory && undatedDone.length > 0 && (
-              <div className="done-day-group">
-                <div className="done-day-header">
-                  <span className="done-day-label" style={{color:'var(--muted)'}}>Avant</span>
-                  <span className="done-day-count">{undatedDone.length}</span>
-                </div>
-                {undatedDone.map(t => (
-                  <TaskCard key={t.id} task={t} allCats={allCats} onToggle={onToggle} onMenu={onMenu} />
-                ))}
-              </div>
-            )}
           </div>
-        )}
+        ))}
       </div>
     );
   }
