@@ -1011,7 +1011,7 @@
     const [openPending, setOpenPending] = useState(true);
     const [search,      setSearch]      = useState('');
     const [quickCapText, setQuickCapText] = useState('');
-    const [openCapture,  setOpenCapture]  = useState(true);
+    const [openCapture,  setOpenCapture]  = useState(false);
     const searchRef = useRef(null);
     const capInputRef = useRef(null);
 
@@ -1115,7 +1115,7 @@
           <div style={{marginTop:20,paddingBottom:120}}>
             <div onClick={()=>setOpenCapture(o=>!o)}
               style={{display:'flex',alignItems:'center',gap:8,padding:'14px 0 10px',cursor:'pointer',userSelect:'none',WebkitTapHighlightColor:'transparent'}}>
-              <span style={{fontSize:11,color:'var(--rose-dk)',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em',opacity:0.85}}>🎙 Capture rapide</span>
+              <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:'var(--rose-dk)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.12em',opacity:0.9}}>🎙 Capture rapide</span>
               {captured.length>0 && <span style={{fontSize:11,color:'white',background:'var(--rose-dk)',borderRadius:10,padding:'1px 7px',opacity:0.85}}>{captured.length}</span>}
               <span style={{color:'var(--muted)',fontSize:13,marginLeft:'auto',transition:'transform 0.2s',display:'inline-block',transform:openCapture?'rotate(180deg)':'none'}}>⌄</span>
             </div>
