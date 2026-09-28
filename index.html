@@ -1101,6 +1101,99 @@
     );
   }
 
+  // ── CAPTURE VIEW ────────────────────────────────────
+  function CaptureView({ tasks, allCats, onMenu, onQualify, onQuickCapture }) {
+    const [quickText, setQuickText] = useState('');
+    const inputRef = useRef(null);
+
+    const captured  = tasks.filter(t => t.captured && !t.done)
+      .sort((a,b) => (b.createdAt||'').localeCompare(a.createdAt||''));
+    const toplan    = tasks.filter(t => !t.captured && !t.done && !t.scheduledDate)
+      .sort((a,b) => (b.createdAt||'').localeCompare(a.createdAt||''));
+
+    const submitQuick = () => {
+      if (!quickText.trim()) return;
+      onQuickCapture(quickText.trim());
+      setQuickText('');
+      inputRef.current && inputRef.current.focus();
+    };
+
+    return (
+      <div className="content">
+        {/* Zone de saisie rapide */}
+        <div style={{background:'var(--surface)',borderRadius:14,padding:'10px 12px',marginBottom:18,border:'1.5px solid var(--border)'}}>
+          <div style={{fontSize:10,color:'var(--rose-dk)',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:8,opacity:0.8}}>⚡ Capturer une idée</div>
+          <div style={{display:'flex',gap:8}}>
+            <input
+              ref={inputRef}
+              className="form-input"
+              placeholder="Note ça vite…"
+              value={quickText}
+              onChange={e=>setQuickText(e.target.value)}
+              onKeyDown={e=>e.key==='Enter'&&submitQuick()}
+              style={{flex:1,margin:0,padding:'9px 12px',borderRadius:10,fontSize:14}}
+            />
+            <button onClick={submitQuick}
+              style={{background:'var(--rose-dk)',border:'none',borderRadius:10,padding:'9px 14px',color:'white',fontSize:16,cursor:'pointer',flexShrink:0}}>
+              ↵
+            </button>
+          </div>
+        </div>
+
+        {/* Captures non qualifiées */}
+        {captured.length > 0 && (
+          <div style={{marginBottom:22}}>
+            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
+              <span style={{fontSize:10,color:'var(--rose-dk)',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em',opacity:0.85}}>🎙 À qualifier</span>
+              <span style={{fontSize:11,color:'var(--muted)',background:'rgba(182,100,80,0.1)',borderRadius:10,padding:'1px 7px'}}>{captured.length}</span>
+            </div>
+            {captured.map(t => (
+              <div key={t.id} style={{background:'var(--surface)',borderRadius:12,padding:'10px 12px',marginBottom:8,border:'1.5px solid rgba(182,100,80,0.2)',display:'flex',alignItems:'center',gap:10}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:14,color:'var(--text)',fontWeight:500,lineHeight:1.35,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{t.title}</div>
+                  {t.createdAt && <div style={{fontSize:10,color:'var(--muted)',marginTop:3,opacity:0.7}}>{fmtD(t.createdAt?.split('T')[0] || t.createdAt)}</div>}
+                </div>
+                <button onClick={()=>onMenu(t)}
+                  style={{background:'none',border:'none',color:'var(--muted)',fontSize:18,cursor:'pointer',padding:'2px 4px',lineHeight:1,flexShrink:0}}>···</button>
+                <button onClick={()=>onQualify(t)}
+                  style={{background:'var(--green-dk)',border:'none',borderRadius:8,padding:'7px 12px',color:'white',fontSize:12,fontWeight:700,cursor:'pointer',flexShrink:0,fontFamily:"'Cormorant Garamond',serif",whiteSpace:'nowrap'}}>
+                  Qualifier →
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Tâches non planifiées (backlog classique) */}
+        {toplan.length > 0 && (
+          <div>
+            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
+              <span style={{fontSize:10,color:'var(--muted)',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em',opacity:0.7}}>📋 À planifier</span>
+              <span style={{fontSize:11,color:'var(--muted)',background:'var(--soft)',borderRadius:10,padding:'1px 7px'}}>{toplan.length}</span>
+            </div>
+            {toplan.map(t => (
+              <div key={t.id} style={{background:'var(--surface)',borderRadius:12,padding:'10px 12px',marginBottom:8,border:'1px solid var(--border)',display:'flex',alignItems:'center',gap:10}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:14,color:'var(--text)',fontWeight:500,lineHeight:1.35,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{t.title}</div>
+                  <div style={{fontSize:11,color:'var(--muted)',marginTop:2,opacity:0.7}}>{(t.categories||[]).map(cid=>{const c=allCats.find(x=>x.id===cid);return c?c.icon+' '+c.label:null}).filter(Boolean).join(' · ')||'Sans catégorie'}</div>
+                </div>
+                <button onClick={()=>onMenu(t)}
+                  style={{background:'none',border:'none',color:'var(--muted)',fontSize:18,cursor:'pointer',padding:'2px 4px',lineHeight:1,flexShrink:0}}>···</button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {captured.length===0 && toplan.length===0 && (
+          <div className="empty" style={{paddingTop:40}}>
+            <div className="empty-icon">🎙</div>
+            <div className="empty-text">Rien à qualifier.<br/>Utilise le micro ou note ici une idée au vol.</div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   // ── DONE VIEW ──────────────────────────────────────
   // ── CLÔTURE DE JOURNÉE ─────────────────────────────
   function ClosingSheet({ tasks, selectedDate, onPlanify, onClose }) {
@@ -2657,14 +2750,28 @@
       }
     }, [syncTask]);
 
-    const handleSaveTask = useCallback((task, etapes) => {
+    // saveTaskRaw: persist a task exactly as-is (used for captures)
+    const saveTaskRaw = useCallback((task, etapes) => {
       setTasks(prev => {
         const exists = prev.find(t=>t.id===task.id);
-        syncTask(task);
+        if (!task.captured) syncTask(task); // don't sync unqualified captures to Notion
         return exists ? prev.map(t=>t.id===task.id?task:t) : [...prev,task];
       });
       if (etapes !== undefined) {
         setSubTasksMap(prev => ({ ...prev, [task.id]: etapes }));
+      }
+    }, [syncTask, setSubTasksMap]);
+
+    // handleSaveTask: called from TaskFormSheet — always clears captured flag (task is qualified)
+    const handleSaveTask = useCallback((task, etapes) => {
+      const cleanTask = { ...task, captured: false };
+      setTasks(prev => {
+        const exists = prev.find(t=>t.id===cleanTask.id);
+        syncTask(cleanTask);
+        return exists ? prev.map(t=>t.id===cleanTask.id?cleanTask:t) : [...prev,cleanTask];
+      });
+      if (etapes !== undefined) {
+        setSubTasksMap(prev => ({ ...prev, [cleanTask.id]: etapes }));
       }
     }, [syncTask, setSubTasksMap]);
 
@@ -2744,13 +2851,28 @@
         id: Date.now().toString(36)+Math.random().toString(36).slice(2),
         title: voiceTitle.trim(),
         done: false, priority:'Normale', categories:[], duration:30,
-        scheduledDate: selectedDate, slot:'Flexible',
+        scheduledDate: null, slot: null,
         energy:'Moyenne', notes:'', doneDate:null,
+        captured: true,
+        createdAt: new Date().toISOString(),
       };
-      handleSaveTask(newTask, []);
+      saveTaskRaw(newTask, []);
       setVoiceState(null);
       setVoiceTitle('');
     };
+
+    const handleQuickCapture = useCallback((title) => {
+      const newTask = {
+        id: Date.now().toString(36)+Math.random().toString(36).slice(2),
+        title,
+        done: false, priority:'Normale', categories:[], duration:30,
+        scheduledDate: null, slot: null,
+        energy:'Moyenne', notes:'', doneDate:null,
+        captured: true,
+        createdAt: new Date().toISOString(),
+      };
+      saveTaskRaw(newTask, []);
+    }, [saveTaskRaw]);
 
     return (
       <SubTaskCtx.Provider value={{ subTasksMap, addSubTask, toggleSubTask, deleteSubTask, updateSubTask }}>
@@ -2764,11 +2886,11 @@
         )}
 
         {tab==='day' && <CalendarStrip selectedDate={selectedDate} onSelectDate={setSelectedDate} tasks={tasks} onSync={() => forceRefresh(true)} syncing={syncing} />}
-        {(tab==='backlog' || tab==='fait') && (
+        {(tab==='capture' || tab==='fait') && (
           <div className="header">
             <div className="header-row">
               <div>
-                <div className="day-name">{tab==='fait' ? 'Fait' : 'Mes tâches'}</div>
+                <div className="day-name">{tab==='fait' ? 'Fait' : 'Capture rapide'}</div>
                 <div className="date-sub">{getDayName()} {getDateStr()}</div>
               </div>
               <button
@@ -2783,8 +2905,8 @@
           </div>
         )}
 
-        {/* Strip énergie du moment — visible sur Planning et À faire */}
-        {(tab==='day' || tab==='backlog') && (
+        {/* Strip énergie du moment — visible sur Planning uniquement */}
+        {(tab==='day') && (
           <div>
             <div className="energy-strip">
               {ENERGY_LEVELS.map(e => (
@@ -2815,28 +2937,32 @@
             </button>
           </div>
         )}
-        {tab==='backlog' && <BacklogView tasks={tasks} allCats={allCats} onToggle={handleToggle} onMenu={setCtxTask} dragRef={dragRef} onDrop={handleMove} energyFilter={energyFilter} />}
+        {tab==='capture' && <CaptureView tasks={tasks} allCats={allCats} onMenu={setCtxTask} onQualify={(t)=>{ setEditTask(t); setShowForm(true); }} onQuickCapture={handleQuickCapture} />}
         {tab==='fait'    && <DoneView tasks={tasks} allCats={allCats} onToggle={handleToggle} onMenu={setCtxTask} />}
         {tab==='finances' && <FinancesView />}
 
         <div className="tabs">
-          {[{id:'day',label:'Planning',icon:'📅'},{id:'backlog',label:'À faire',icon:'✦'},{id:'fait',label:'Fait',icon:'✓'},{id:'finances',label:'Finances',icon:'💰'}].map(t=>(
-            <button key={t.id} className={`tab ${tab===t.id?'active':''}`} onClick={()=>setTab(t.id)}>
-              <span className="tab-icon">{t.icon}</span>
-              {t.label}
-            </button>
-          ))}
+          {(() => {
+            const capCount = tasks.filter(t=>t.captured&&!t.done).length;
+            return [{id:'day',label:'Planning',icon:'📅'},{id:'capture',label:'Capture',icon:'🎙',badge:capCount||null},{id:'fait',label:'Fait',icon:'✓'},{id:'finances',label:'Finances',icon:'💰'}].map(t=>(
+              <button key={t.id} className={`tab ${tab===t.id?'active':''}`} onClick={()=>setTab(t.id)} style={{position:'relative'}}>
+                <span className="tab-icon">{t.icon}</span>
+                {t.label}
+                {t.badge && <span style={{position:'absolute',top:4,right:4,background:'var(--rose-dk)',color:'white',borderRadius:'50%',width:16,height:16,fontSize:9,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',lineHeight:1}}>{t.badge}</span>}
+              </button>
+            ));
+          })()}
         </div>
 
         {tab !== 'finances' && (
           <div className="fab-area">
-            {tab==='day' && (
-              <button className={`fab-voice${voiceState==='listening'?' listening':''}`} onClick={startVoice} title="Capture rapide">
+            {(tab==='day' || tab==='capture') && (
+              <button className={`fab-voice${voiceState==='listening'?' listening':''}`} onClick={startVoice} title="Capture vocale">
                 🎙
                 {voiceState==='listening' && <span className="fab-voice-label">Écoute…</span>}
               </button>
             )}
-            <button className="fab" onClick={()=>tab==='day'?openAdd(null,selectedDate):openAdd()}>+</button>
+            <button className="fab" onClick={()=>tab==='day'?openAdd(null,selectedDate):tab==='capture'?openAdd(null,null):openAdd()}>+</button>
           </div>
         )}
 
