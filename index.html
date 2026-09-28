@@ -1006,14 +1006,26 @@
   };
 
   // ── BACKLOG VIEW ───────────────────────────────────
-  function BacklogView({ tasks, allCats, onToggle, onMenu, dragRef, onDrop, energyFilter }) {
+  function BacklogView({ tasks, allCats, onToggle, onMenu, dragRef, onDrop, energyFilter, onQualify, onQuickCapture }) {
     const [catFilter,   setCatFilter]   = useState(null);
     const [openPending, setOpenPending] = useState(true);
     const [search,      setSearch]      = useState('');
+    const [quickCapText, setQuickCapText] = useState('');
+    const [openCapture,  setOpenCapture]  = useState(true);
     const searchRef = useRef(null);
+    const capInputRef = useRef(null);
+
+    const submitQuickCap = () => {
+      if (!quickCapText.trim()) return;
+      onQuickCapture && onQuickCapture(quickCapText.trim());
+      setQuickCapText('');
+      capInputRef.current && capInputRef.current.focus();
+    };
 
     // Toutes les tâches non faites, triées du plus récent au plus ancien
-    const pending  = tasks.filter(tk => !tk.done)
+    const captured = tasks.filter(tk => tk.captured && !tk.done)
+      .sort((a, b) => (b.createdAt||'').localeCompare(a.createdAt||''));
+    const pending  = tasks.filter(tk => !tk.done && !tk.captured)
       .sort((a, b) => (b.createdAt||'').localeCompare(a.createdAt||''));
     const usedCats = allCats.filter(c => pending.some(t => (t.categories||[]).includes(c.id)));
 
@@ -1091,17 +1103,71 @@
           </div>
         )}
 
-        {!isSearching && pending.length === 0 && (
+        {!isSearching && pending.length === 0 && captured.length === 0 && (
           <div className="empty" style={{paddingTop:32}}>
             <div className="empty-icon">🌿</div>
             <div className="empty-text">Tout est fait !<br/>Va dans "Fait" pour savourer ✓</div>
+          </div>
+        )}
+
+        {/* ── Section Capture rapide ── */}
+        {!isSearching && (
+          <div style={{marginTop:20,paddingBottom:120}}>
+            <div onClick={()=>setOpenCapture(o=>!o)}
+              style={{display:'flex',alignItems:'center',gap:8,padding:'14px 0 10px',cursor:'pointer',userSelect:'none',WebkitTapHighlightColor:'transparent'}}>
+              <span style={{fontSize:11,color:'var(--rose-dk)',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em',opacity:0.85}}>🎙 Capture rapide</span>
+              {captured.length>0 && <span style={{fontSize:11,color:'white',background:'var(--rose-dk)',borderRadius:10,padding:'1px 7px',opacity:0.85}}>{captured.length}</span>}
+              <span style={{color:'var(--muted)',fontSize:13,marginLeft:'auto',transition:'transform 0.2s',display:'inline-block',transform:openCapture?'rotate(180deg)':'none'}}>⌄</span>
+            </div>
+
+            {openCapture && (
+              <div>
+                {/* Saisie rapide */}
+                <div style={{display:'flex',gap:8,marginBottom:12}}>
+                  <input
+                    ref={capInputRef}
+                    className="form-input"
+                    placeholder="Note une idée vite…"
+                    value={quickCapText}
+                    onChange={e=>setQuickCapText(e.target.value)}
+                    onKeyDown={e=>e.key==='Enter'&&submitQuickCap()}
+                    style={{flex:1,margin:0,padding:'9px 12px',borderRadius:10,fontSize:14}}
+                  />
+                  <button onClick={submitQuickCap}
+                    style={{background:'var(--rose-dk)',border:'none',borderRadius:10,padding:'9px 14px',color:'white',fontSize:16,cursor:'pointer',flexShrink:0}}>
+                    ↵
+                  </button>
+                </div>
+
+                {/* Captures à qualifier */}
+                {captured.map(t => (
+                  <div key={t.id} style={{background:'var(--surface)',borderRadius:12,padding:'10px 12px',marginBottom:8,border:'1.5px solid rgba(182,100,80,0.2)',display:'flex',alignItems:'center',gap:10}}>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:14,color:'var(--text)',fontWeight:500,lineHeight:1.35,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{t.title}</div>
+                    </div>
+                    <button onClick={()=>onMenu(t)}
+                      style={{background:'none',border:'none',color:'var(--muted)',fontSize:18,cursor:'pointer',padding:'2px 4px',lineHeight:1,flexShrink:0}}>···</button>
+                    <button onClick={()=>onQualify&&onQualify(t)}
+                      style={{background:'var(--green-dk)',border:'none',borderRadius:8,padding:'7px 12px',color:'white',fontSize:12,fontWeight:700,cursor:'pointer',flexShrink:0,whiteSpace:'nowrap',fontFamily:"'Cormorant Garamond',serif"}}>
+                      Qualifier →
+                    </button>
+                  </div>
+                ))}
+
+                {captured.length === 0 && (
+                  <div style={{fontSize:12,color:'var(--muted)',opacity:0.6,padding:'4px 0 8px',textAlign:'center'}}>
+                    Rien en attente · Utilise le micro 🎙 ou note ici
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
     );
   }
 
-  // ── CAPTURE VIEW ────────────────────────────────────
+  // ── CAPTURE VIEW (kept for compatibility) ────────────────────────────────────
   function CaptureView({ tasks, allCats, onMenu, onQualify, onQuickCapture }) {
     const [quickText, setQuickText] = useState('');
     const inputRef = useRef(null);
@@ -2886,11 +2952,11 @@
         )}
 
         {tab==='day' && <CalendarStrip selectedDate={selectedDate} onSelectDate={setSelectedDate} tasks={tasks} onSync={() => forceRefresh(true)} syncing={syncing} />}
-        {(tab==='capture' || tab==='fait') && (
+        {(tab==='backlog' || tab==='fait') && (
           <div className="header">
             <div className="header-row">
               <div>
-                <div className="day-name">{tab==='fait' ? 'Fait' : 'Capture rapide'}</div>
+                <div className="day-name">{tab==='fait' ? 'Fait' : 'Mes tâches'}</div>
                 <div className="date-sub">{getDayName()} {getDateStr()}</div>
               </div>
               <button
@@ -2905,8 +2971,8 @@
           </div>
         )}
 
-        {/* Strip énergie du moment — visible sur Planning uniquement */}
-        {(tab==='day') && (
+        {/* Strip énergie du moment — visible sur Planning et À faire */}
+        {(tab==='day' || tab==='backlog') && (
           <div>
             <div className="energy-strip">
               {ENERGY_LEVELS.map(e => (
@@ -2937,32 +3003,28 @@
             </button>
           </div>
         )}
-        {tab==='capture' && <CaptureView tasks={tasks} allCats={allCats} onMenu={setCtxTask} onQualify={(t)=>{ setEditTask(t); setShowForm(true); }} onQuickCapture={handleQuickCapture} />}
+        {tab==='backlog' && <BacklogView tasks={tasks} allCats={allCats} onToggle={handleToggle} onMenu={setCtxTask} dragRef={dragRef} onDrop={handleMove} energyFilter={energyFilter} onQualify={(t)=>{ setEditTask(t); setShowForm(true); }} onQuickCapture={handleQuickCapture} />}
         {tab==='fait'    && <DoneView tasks={tasks} allCats={allCats} onToggle={handleToggle} onMenu={setCtxTask} />}
         {tab==='finances' && <FinancesView />}
 
         <div className="tabs">
-          {(() => {
-            const capCount = tasks.filter(t=>t.captured&&!t.done).length;
-            return [{id:'day',label:'Planning',icon:'📅'},{id:'capture',label:'Capture',icon:'🎙',badge:capCount||null},{id:'fait',label:'Fait',icon:'✓'},{id:'finances',label:'Finances',icon:'💰'}].map(t=>(
-              <button key={t.id} className={`tab ${tab===t.id?'active':''}`} onClick={()=>setTab(t.id)} style={{position:'relative'}}>
-                <span className="tab-icon">{t.icon}</span>
-                {t.label}
-                {t.badge && <span style={{position:'absolute',top:4,right:4,background:'var(--rose-dk)',color:'white',borderRadius:'50%',width:16,height:16,fontSize:9,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',lineHeight:1}}>{t.badge}</span>}
-              </button>
-            ));
-          })()}
+          {[{id:'day',label:'Planning',icon:'📅'},{id:'backlog',label:'À faire',icon:'✦'},{id:'fait',label:'Fait',icon:'✓'},{id:'finances',label:'Finances',icon:'💰'}].map(t=>(
+            <button key={t.id} className={`tab ${tab===t.id?'active':''}`} onClick={()=>setTab(t.id)}>
+              <span className="tab-icon">{t.icon}</span>
+              {t.label}
+            </button>
+          ))}
         </div>
 
         {tab !== 'finances' && (
           <div className="fab-area">
-            {(tab==='day' || tab==='capture') && (
+            {(tab==='day' || tab==='backlog') && (
               <button className={`fab-voice${voiceState==='listening'?' listening':''}`} onClick={startVoice} title="Capture vocale">
                 🎙
                 {voiceState==='listening' && <span className="fab-voice-label">Écoute…</span>}
               </button>
             )}
-            <button className="fab" onClick={()=>tab==='day'?openAdd(null,selectedDate):tab==='capture'?openAdd(null,null):openAdd()}>+</button>
+            <button className="fab" onClick={()=>tab==='day'?openAdd(null,selectedDate):openAdd()}>+</button>
           </div>
         )}
 
