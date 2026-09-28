@@ -675,17 +675,16 @@
               {showDate && task.scheduledDate && <span className="chip-sched">📅 {fmtDateLabel(task.scheduledDate)}</span>}
               {cats.map(c => <span key={c.id} className="chip-cat">{c.icon} {c.label}</span>)}
               {task.notes && task.notes.trim() && <span title={task.notes} style={{fontSize:13,opacity:0.55,lineHeight:1}}>📝</span>}
-              {subtasks.length>0 && !expanded && (
-                <span style={{fontSize:10,color:'var(--green-dk)',background:'rgba(60,140,80,0.1)',padding:'2px 6px',borderRadius:8,fontWeight:600}}>
-                  {doneSubs}/{subtasks.length} ✓
-                </span>
-              )}
             </div>
+            <button onClick={e=>{e.stopPropagation();setExpanded(v=>!v);}}
+              style={{marginTop:5,display:'inline-flex',alignItems:'center',gap:4,fontSize:11,padding:'3px 9px',borderRadius:10,border:'1px dashed rgba(182,154,148,0.35)',background:expanded?'rgba(182,154,148,0.08)':'transparent',cursor:'pointer',color:expanded?'var(--green-dk)':'var(--muted)',fontWeight:expanded?600:400,lineHeight:1.2}}>
+              {expanded
+                ? '▲ Réduire'
+                : subtasks.length>0
+                  ? `📋 ${subtasks.length} étape${subtasks.length>1?'s':''} · ${doneSubs} ✓`
+                  : '+ Étapes'}
+            </button>
           </div>
-          <button onClick={e=>{e.stopPropagation();setExpanded(v=>!v);}} title={expanded?'Réduire':'Déplier les étapes'}
-            style={{background:'none',border:'none',padding:'4px 6px',cursor:'pointer',color:'var(--muted)',opacity:0.45,fontSize:13,flexShrink:0,lineHeight:1}}>
-            {expanded ? '▲' : (subtasks.length>0 ? `⋮${subtasks.length}` : '⋮')}
-          </button>
           <button className="task-menu-btn" onClick={() => onMenu(task)}>···</button>
         </div>
         {expanded && <SubTaskList parentId={task.id} />}
@@ -1287,6 +1286,41 @@
   }
 
   // ── TASK FORM SHEET ────────────────────────────────
+  function EtapeFormPlan({ et, onClose, onSave, onRemove }) {
+    const [localDate, setLocalDate] = React.useState(et?.scheduledDate || todayKey());
+    const [localSlot, setLocalSlot] = React.useState(et?.slot || 'Flexible');
+    if (!et) return null;
+    return (
+      <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.45)',display:'flex',alignItems:'flex-end',justifyContent:'center',zIndex:400}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+        <div style={{background:'var(--bg)',borderRadius:'16px 16px 0 0',padding:'20px 16px 44px',width:'100%',maxWidth:480}}>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,marginBottom:6,color:'var(--green-dk)',fontWeight:400}}>Planifier l'étape</div>
+          <div style={{fontSize:12,color:'var(--muted)',marginBottom:14,fontStyle:'italic',opacity:0.7}}>« {et.title} »</div>
+          <div style={{marginBottom:10}}>
+            <div style={{fontSize:11,color:'var(--text-dim)',fontWeight:600,textTransform:'uppercase',marginBottom:4}}>Date</div>
+            <input type="date" value={localDate} onChange={e=>setLocalDate(e.target.value)}
+              style={{width:'100%',border:'1px solid var(--border)',borderRadius:8,padding:'8px 10px',fontSize:14,color:'var(--text)',background:'var(--bg)',boxSizing:'border-box'}}/>
+          </div>
+          <div style={{marginBottom:16}}>
+            <div style={{fontSize:11,color:'var(--text-dim)',fontWeight:600,textTransform:'uppercase',marginBottom:4}}>Moment</div>
+            <div style={{display:'flex',gap:6}}>
+              {SLOTS.map(s=>(
+                <button key={s.id} onClick={()=>setLocalSlot(s.id)}
+                  style={{flex:1,padding:'7px 0',borderRadius:8,border:'1.5px solid '+(localSlot===s.id?s.color:'var(--border)'),background:localSlot===s.id?s.bg:'transparent',color:localSlot===s.id?s.color:'var(--muted)',fontSize:11,cursor:'pointer',fontWeight:localSlot===s.id?700:400}}>
+                  {s.icon} <span style={{fontSize:10}}>{s.label.split(' ')[0]}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div style={{display:'flex',gap:8}}>
+            {et.scheduledDate&&<button onClick={onRemove} style={{flex:1,background:'transparent',border:'1px solid var(--border)',borderRadius:8,padding:'10px',fontSize:12,color:'var(--muted)',cursor:'pointer'}}>Retirer</button>}
+            <button onClick={onClose} style={{flex:1,background:'var(--border)',border:'none',borderRadius:8,padding:'10px',fontSize:13,cursor:'pointer',color:'var(--text)'}}>Annuler</button>
+            <button onClick={()=>localDate&&onSave(localDate,localSlot)} style={{flex:2,background:'var(--green-dk)',border:'none',borderRadius:8,padding:'10px',fontSize:13,fontWeight:700,color:'white',cursor:'pointer'}}>Planifier</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   function TaskFormSheet({ onClose, onSave, initial, allCats, customCatIds, onAddCustomCat, onDeleteCustomCat, defaultSlot, defaultDate }) {
     const isEdit = !!initial;
     const [title,      setTitle]      = useState(initial?.title || '');
@@ -1320,10 +1354,27 @@
       setNewIcon(''); setNewLabel(''); setShowNewCat(false);
     };
 
+    const { subTasksMap } = React.useContext(SubTaskCtx) || {};
+    const [etapes, setEtapes] = React.useState(() => {
+      if (initial?.id && subTasksMap?.[initial.id]) return subTasksMap[initial.id].map(s=>({...s}));
+      return [];
+    });
+    const [newEtape,    setNewEtape]    = React.useState('');
+    const [etapePlanId, setEtapePlanId] = React.useState(null);
+    const etapeInputRef = React.useRef(null);
+
+    const addEtape = () => {
+      const t = newEtape.trim(); if (!t) return;
+      setEtapes(prev => [...prev, { id: Date.now().toString(36)+Math.random().toString(36).slice(2), title:t, done:false, scheduledDate:null, slot:null }]);
+      setNewEtape('');
+      setTimeout(()=>etapeInputRef.current?.focus(), 30);
+    };
+
     const handleSave = () => {
       if (!title.trim()) return;
-      const base = isEdit ? { ...initial } : { id: Date.now().toString(36)+Math.random().toString(36).slice(2), done: false, doneDate: null, createdAt: new Date().toISOString(), scheduledDate: showSched ? (schedDate || defaultDate || null) : null };
-      onSave({ ...base, title: title.trim(), priority, slot, duration, categories, notes: notes.trim(), energy: energy || null, scheduledDate: showSched ? (schedDate || defaultDate || null) : (isEdit ? initial.scheduledDate : null) });
+      const taskId = isEdit ? initial.id : Date.now().toString(36)+Math.random().toString(36).slice(2);
+      const base = isEdit ? { ...initial } : { id: taskId, done: false, doneDate: null, createdAt: new Date().toISOString(), scheduledDate: showSched ? (schedDate || defaultDate || null) : null };
+      onSave({ ...base, title: title.trim(), priority, slot, duration, categories, notes: notes.trim(), energy: energy || null, scheduledDate: showSched ? (schedDate || defaultDate || null) : (isEdit ? initial.scheduledDate : null) }, etapes);
       onClose();
     };
 
@@ -1437,6 +1488,32 @@
               </div>
             )}
           </div>
+          {/* ── Étapes ── */}
+          <div className="form-group">
+            <label className="form-label">Étapes <span style={{fontWeight:400,opacity:0.55,textTransform:'none',letterSpacing:0}}>(optionnel — pour séquencer une grosse tâche)</span></label>
+            {etapes.map((et,i) => (
+              <div key={et.id} style={{display:'flex',alignItems:'center',gap:6,marginBottom:6,padding:'6px 8px',borderRadius:10,background:'rgba(182,154,148,0.06)',border:'1px solid rgba(182,154,148,0.15)'}}>
+                <span style={{color:'var(--muted)',opacity:0.4,fontSize:12,minWidth:14}}>{i+1}.</span>
+                <span style={{flex:1,fontSize:13,color:'var(--text)'}}>{et.title}</span>
+                {et.scheduledDate
+                  ? <span onClick={()=>setEtapePlanId(et.id)} style={{fontSize:10,color:'var(--green-dk)',background:'rgba(60,140,80,0.1)',padding:'2px 7px',borderRadius:8,cursor:'pointer',whiteSpace:'nowrap'}}>📅 {fmtD(et.scheduledDate)}</span>
+                  : <button onClick={()=>setEtapePlanId(et.id)} style={{background:'none',border:'none',fontSize:12,color:'var(--muted)',opacity:0.4,cursor:'pointer',padding:'2px 4px'}} title="Planifier cette étape">📅</button>
+                }
+                <button onClick={()=>setEtapes(prev=>prev.filter(e=>e.id!==et.id))} style={{background:'none',border:'none',color:'var(--muted)',opacity:0.35,cursor:'pointer',fontSize:13,padding:'2px 4px'}}>✕</button>
+              </div>
+            ))}
+            <div style={{display:'flex',gap:8,alignItems:'center',marginTop:4}}>
+              <input ref={etapeInputRef} value={newEtape} onChange={e=>setNewEtape(e.target.value)}
+                onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();addEtape();}}}
+                placeholder="Ajouter une étape…"
+                className="form-input" style={{fontSize:13,padding:'8px 10px',flex:1}}/>
+              {newEtape.trim()&&<button onClick={addEtape} style={{background:'var(--green-dk)',border:'none',borderRadius:8,padding:'8px 14px',color:'white',fontSize:13,fontWeight:700,cursor:'pointer',flexShrink:0}}>+</button>}
+            </div>
+          </div>
+
+          {/* Modal planification d'étape dans le formulaire */}
+          {etapePlanId && <EtapeFormPlan et={etapes.find(e=>e.id===etapePlanId)} onClose={()=>setEtapePlanId(null)} onSave={(scheduledDate,slot)=>{ setEtapes(p=>p.map(e=>e.id===etapePlanId?{...e,scheduledDate,slot}:e)); setEtapePlanId(null); }} onRemove={()=>{ setEtapes(p=>p.map(e=>e.id===etapePlanId?{...e,scheduledDate:null,slot:null}:e)); setEtapePlanId(null); }}/>}
+
           <button className="btn-main" onClick={handleSave} disabled={!title.trim()}>{isEdit ? 'Enregistrer' : 'Ajouter la tâche'}</button>
           <button className="btn-secondary" onClick={onClose}>Annuler</button>
         </div>
@@ -2460,13 +2537,16 @@
       }
     }, [syncTask]);
 
-    const handleSaveTask = useCallback((task) => {
+    const handleSaveTask = useCallback((task, etapes) => {
       setTasks(prev => {
         const exists = prev.find(t=>t.id===task.id);
         syncTask(task);
         return exists ? prev.map(t=>t.id===task.id?task:t) : [...prev,task];
       });
-    }, [syncTask]);
+      if (etapes !== undefined) {
+        setSubTasksMap(prev => ({ ...prev, [task.id]: etapes }));
+      }
+    }, [syncTask, setSubTasksMap]);
 
     const handleDelete = useCallback((id) => {
       setTasks(prev => {
