@@ -293,6 +293,7 @@
   const todayKey = () => localKey(new Date());
   const ydayKey  = () => { const d=new Date(); d.setDate(d.getDate()-1); return localKey(d); };
   const addDays  = (n) => { const d=new Date(); d.setDate(d.getDate()+n); return localKey(d); };
+  const fmtD     = d => { if(!d) return ''; const p=d.split('-'); return `${p[2]}/${p[1]}`; };
   const fmtDur   = (m) => m<60 ? `${m} min` : (m%60===0 ? `${m/60}h` : `${Math.floor(m/60)}h${m%60}`);
   const fmtSec   = (s) => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
   const DAY_FR   = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
@@ -335,6 +336,7 @@
     energy:      'flow_energy_filter',
     doneLog:     'flow_done_log',     // { [notionId]: doneDate } — seule source de vérité pour les dates
     pendingSync: 'flow_pending_sync', // tâches à re-syncer (syncs échouées)
+    subTasks:    'cocci_subtasks_v1', // { [parentTaskId]: [{id,title,done,scheduledDate,slot}] }
   };
 
   // ── NOTION SYNC ────────────────────────────────────────
@@ -389,6 +391,100 @@
   }
 
   // ── TASK CARD ──────────────────────────────────────
+  // ── SOUS-TÂCHES : contexte + composants ───────────────
+  const SubTaskCtx = React.createContext(null);
+
+  function SubTaskPlanModal({ sub, parentId, onClose }) {
+    const { updateSubTask } = React.useContext(SubTaskCtx);
+    const [date, setDate] = React.useState(sub.scheduledDate || todayKey());
+    const [slot, setSlot] = React.useState(sub.slot || 'Flexible');
+    const fldStyle = { width:'100%', border:'1px solid var(--border)', borderRadius:8, padding:'8px 10px', fontSize:14, color:'var(--text)', background:'var(--bg)', boxSizing:'border-box' };
+    return (
+      <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.45)',display:'flex',alignItems:'flex-end',justifyContent:'center',zIndex:350}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+        <div style={{background:'var(--bg)',borderRadius:'16px 16px 0 0',padding:'20px 16px 42px',width:'100%',maxWidth:480}}>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:19,marginBottom:14,color:'var(--green-dk)',fontWeight:400}}>Planifier l'étape</div>
+          <div style={{fontSize:12,color:'var(--muted)',marginBottom:14,lineHeight:1.4,fontStyle:'italic',opacity:0.7}}>« {sub.title} »</div>
+          <div style={{marginBottom:12}}>
+            <div style={{fontSize:11,color:'var(--text-dim)',fontWeight:600,textTransform:'uppercase',marginBottom:4}}>Date</div>
+            <input type="date" value={date} onChange={e=>setDate(e.target.value)} style={fldStyle}/>
+          </div>
+          <div style={{marginBottom:18}}>
+            <div style={{fontSize:11,color:'var(--text-dim)',fontWeight:600,textTransform:'uppercase',marginBottom:4}}>Moment</div>
+            <div style={{display:'flex',gap:6}}>
+              {SLOTS.map(s=>(
+                <button key={s.id} onClick={()=>setSlot(s.id)}
+                  style={{flex:1,padding:'8px 0',borderRadius:8,border:'1.5px solid '+(slot===s.id?s.color:'var(--border)'),background:slot===s.id?s.bg:'transparent',color:slot===s.id?s.color:'var(--muted)',fontSize:11,cursor:'pointer',fontWeight:slot===s.id?700:400}}>
+                  {s.icon} <span style={{fontSize:10}}>{s.label.split(' ')[0]}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div style={{display:'flex',gap:8}}>
+            {sub.scheduledDate&&<button onClick={()=>{updateSubTask(parentId,sub.id,{scheduledDate:null,slot:null});onClose();}} style={{flex:1,background:'transparent',border:'1px solid var(--border)',borderRadius:8,padding:'10px',fontSize:12,color:'var(--muted)',cursor:'pointer'}}>Retirer</button>}
+            <button onClick={onClose} style={{flex:1,background:'var(--border)',border:'none',borderRadius:8,padding:'10px',fontSize:13,cursor:'pointer',color:'var(--text)'}}>Annuler</button>
+            <button onClick={()=>{if(date){updateSubTask(parentId,sub.id,{scheduledDate:date,slot});onClose();}}} style={{flex:2,background:'var(--green-dk)',border:'none',borderRadius:8,padding:'10px',fontSize:13,fontWeight:700,color:'white',cursor:'pointer'}}>Planifier</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function SubTaskList({ parentId }) {
+    const { subTasksMap, addSubTask, toggleSubTask, deleteSubTask } = React.useContext(SubTaskCtx);
+    const [planSubId, setPlanSubId] = React.useState(null);
+    const [newTitle,  setNewTitle]  = React.useState('');
+    const inputRef = React.useRef(null);
+    const subtasks = subTasksMap[parentId] || [];
+    const doneCnt  = subtasks.filter(s=>s.done).length;
+    const planSub  = planSubId ? subtasks.find(s=>s.id===planSubId) : null;
+
+    const handleAdd = () => {
+      const t = newTitle.trim();
+      if (!t) return;
+      addSubTask(parentId, t);
+      setNewTitle('');
+      setTimeout(()=>inputRef.current?.focus(), 50);
+    };
+
+    return (
+      <div style={{marginTop:8,paddingTop:8,borderTop:'1px solid rgba(182,154,148,0.18)'}}>
+        {subtasks.length>0&&<div style={{fontSize:10,color:'var(--muted)',marginBottom:6,fontWeight:600,letterSpacing:'0.03em'}}>
+          {doneCnt}/{subtasks.length} étape{subtasks.length>1?'s':''}
+          {subtasks.length>0&&<span style={{marginLeft:6,display:'inline-block',width:60,height:3,borderRadius:3,background:'var(--border)',verticalAlign:'middle',position:'relative'}}>
+            <span style={{position:'absolute',inset:0,borderRadius:3,background:'var(--green-dk)',width:(doneCnt/subtasks.length*100)+'%'}}/>
+          </span>}
+        </div>}
+        {subtasks.map(sub=>(
+          <div key={sub.id} style={{display:'flex',alignItems:'flex-start',gap:6,marginBottom:5,padding:'2px 0'}}>
+            <button onClick={e=>{e.stopPropagation();toggleSubTask(parentId,sub.id);}}
+              style={{width:17,height:17,minWidth:17,marginTop:2,borderRadius:'50%',border:'1.5px solid '+(sub.done?'var(--green-dk)':'rgba(182,154,148,0.5)'),background:sub.done?'var(--green-dk)':'transparent',display:'flex',alignItems:'center',justifyContent:'center',padding:0,cursor:'pointer',flexShrink:0}}>
+              {sub.done&&<span style={{color:'white',fontSize:9,lineHeight:1,fontWeight:700}}>✓</span>}
+            </button>
+            <span style={{flex:1,fontSize:12,color:sub.done?'var(--muted)':'var(--text)',textDecoration:sub.done?'line-through':'none',opacity:sub.done?0.55:1,lineHeight:'1.35'}}>
+              {sub.title}
+            </span>
+            {sub.scheduledDate
+              ?<span onClick={e=>{e.stopPropagation();setPlanSubId(sub.id);}} style={{fontSize:10,color:'var(--green-dk)',background:'rgba(60,140,80,0.1)',padding:'2px 6px',borderRadius:8,whiteSpace:'nowrap',cursor:'pointer',flexShrink:0,lineHeight:'1.6'}}>
+                  📅 {fmtD(sub.scheduledDate)}
+                </span>
+              :<button onClick={e=>{e.stopPropagation();setPlanSubId(sub.id);}} style={{background:'none',border:'none',color:'var(--muted)',opacity:0.3,cursor:'pointer',padding:'1px 3px',fontSize:11,flexShrink:0}} title="Planifier cette étape">📅</button>
+            }
+            <button onClick={e=>{e.stopPropagation();deleteSubTask(parentId,sub.id);}} style={{background:'none',border:'none',color:'var(--muted)',opacity:0.3,cursor:'pointer',padding:'1px 3px',fontSize:11,flexShrink:0}}>✕</button>
+          </div>
+        ))}
+        <div style={{display:'flex',gap:6,marginTop:7,alignItems:'center'}}>
+          <span style={{color:'var(--muted)',opacity:0.4,fontSize:14,flexShrink:0}}>└</span>
+          <input ref={inputRef} value={newTitle} onChange={e=>setNewTitle(e.target.value)}
+            onKeyDown={e=>{if(e.key==='Enter'){e.stopPropagation();handleAdd();}}}
+            placeholder="Nouvelle étape…"
+            style={{flex:1,border:'none',borderBottom:'1px solid rgba(182,154,148,0.25)',padding:'3px 2px',fontSize:12,color:'var(--text)',background:'transparent',outline:'none'}}/>
+          {newTitle.trim()&&<button onClick={e=>{e.stopPropagation();handleAdd();}} style={{background:'var(--green-dk)',border:'none',borderRadius:6,padding:'3px 9px',color:'white',fontSize:12,cursor:'pointer',fontWeight:700,flexShrink:0}}>+</button>}
+        </div>
+        {planSub&&<SubTaskPlanModal sub={planSub} parentId={parentId} onClose={()=>setPlanSubId(null)}/>}
+      </div>
+    );
+  }
+
   function TaskCard({ task, allCats, onToggle, onMenu, showDate, dragRef, onDrop }) {
     const pKey = task.priority.toLowerCase();
     const cats = (task.categories||[]).map(id => allCats.find(c=>c.id===id)).filter(c => c && c.label !== '(sans nom)');
@@ -550,6 +646,11 @@
       };
     }, [task.id, task.done]);
 
+    const { subTasksMap } = React.useContext(SubTaskCtx) || {};
+    const subtasks = subTasksMap ? (subTasksMap[task.id] || []) : [];
+    const doneSubs = subtasks.filter(s=>s.done).length;
+    const [expanded, setExpanded] = React.useState(false);
+
     return (
       <div
         ref={cardRef}
@@ -557,36 +658,60 @@
         draggable={!task.done}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
+        style={{flexDirection:'column',alignItems:'stretch'}}
       >
-        <button className={`task-check ${task.done?'checked':''}`} onClick={() => onToggle(task.id)}>
-          {task.done && <span className="check-icon">✓</span>}
-        </button>
-        <div className="task-body">
-          <div className={`task-title ${task.done?'done-text':''}`}>
-            {task.energy && <span style={{marginRight:5}}>{(ENERGY_LEVELS.find(e=>e.id===task.energy)||{}).icon}</span>}
-            {task.title}
+        <div style={{display:'flex',alignItems:'center',gap:0}}>
+          <button className={`task-check ${task.done?'checked':''}`} onClick={() => onToggle(task.id)}>
+            {task.done && <span className="check-icon">✓</span>}
+          </button>
+          <div className="task-body" style={{flex:1,minWidth:0}}>
+            <div className={`task-title ${task.done?'done-text':''}`}>
+              {task.energy && <span style={{marginRight:5}}>{(ENERGY_LEVELS.find(e=>e.id===task.energy)||{}).icon}</span>}
+              {task.title}
+            </div>
+            <div className="task-meta">
+              <span className="task-dur">⏱ {fmtDur(task.duration)}</span>
+              <span className={`task-chip chip-${pKey}`}>{task.priority}</span>
+              {showDate && task.scheduledDate && <span className="chip-sched">📅 {fmtDateLabel(task.scheduledDate)}</span>}
+              {cats.map(c => <span key={c.id} className="chip-cat">{c.icon} {c.label}</span>)}
+              {task.notes && task.notes.trim() && <span title={task.notes} style={{fontSize:13,opacity:0.55,lineHeight:1}}>📝</span>}
+              {subtasks.length>0 && !expanded && (
+                <span style={{fontSize:10,color:'var(--green-dk)',background:'rgba(60,140,80,0.1)',padding:'2px 6px',borderRadius:8,fontWeight:600}}>
+                  {doneSubs}/{subtasks.length} ✓
+                </span>
+              )}
+            </div>
           </div>
-          <div className="task-meta">
-            <span className="task-dur">⏱ {fmtDur(task.duration)}</span>
-            <span className={`task-chip chip-${pKey}`}>{task.priority}</span>
-            {showDate && task.scheduledDate && <span className="chip-sched">📅 {fmtDateLabel(task.scheduledDate)}</span>}
-            {cats.map(c => <span key={c.id} className="chip-cat">{c.icon} {c.label}</span>)}
-{task.notes && task.notes.trim() && <span title={task.notes} style={{fontSize:13,opacity:0.55,lineHeight:1}}>📝</span>}
-          </div>
+          <button onClick={e=>{e.stopPropagation();setExpanded(v=>!v);}} title={expanded?'Réduire':'Déplier les étapes'}
+            style={{background:'none',border:'none',padding:'4px 6px',cursor:'pointer',color:'var(--muted)',opacity:0.45,fontSize:13,flexShrink:0,lineHeight:1}}>
+            {expanded ? '▲' : (subtasks.length>0 ? `⋮${subtasks.length}` : '⋮')}
+          </button>
+          <button className="task-menu-btn" onClick={() => onMenu(task)}>···</button>
         </div>
-        <button className="task-menu-btn" onClick={() => onMenu(task)}>···</button>
+        {expanded && <SubTaskList parentId={task.id} />}
       </div>
     );
   }
 
   // ── SLOT SECTION (day view) ────────────────────────
-  function SlotSection({ slot, tasks, allCats, onToggle, onMenu, onAddToSlot, dragRef, onDrop }) {
+  function SlotSection({ slot, tasks, allCats, onToggle, onMenu, onAddToSlot, dragRef, onDrop, selectedDate }) {
     const [open, setOpen] = useState(true);
     const [over, setOver] = useState(false);
+    const { subTasksMap, toggleSubTask, deleteSubTask } = React.useContext(SubTaskCtx) || {};
+    const [planSubDay, setPlanSubDay] = React.useState(null); // {sub, parentId}
+
     const undone    = tasks.filter(tk => !tk.done);
     const doneTasks = tasks.filter(tk => tk.done);
     const allDone   = undone.length===0 && doneTasks.length>0;
     const visible   = [...undone, ...doneTasks];
+
+    // Sous-tâches planifiées pour ce slot et cette date
+    const scheduledSubs = selectedDate && subTasksMap
+      ? Object.entries(subTasksMap).flatMap(([parentId, subs]) =>
+          subs.filter(s => s.scheduledDate===selectedDate && (s.slot||'Flexible')===slot.id)
+              .map(s => ({ ...s, parentId }))
+        )
+      : [];
 
     const handleDragOver = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setOver(true); };
     const handleDragLeave = (e) => { if (!e.currentTarget.contains(e.relatedTarget)) setOver(false); };
@@ -612,8 +737,30 @@
           <span className={`slot-chevron ${open?'open':''}`}>›</span>
         </div>
         {open && <>
-          {allDone && <div className="celebration">✨ Tout terminé !</div>}
+          {allDone && scheduledSubs.length===0 && <div className="celebration">✨ Tout terminé !</div>}
           {visible.map(t => <TaskCard key={t.id} task={t} allCats={allCats} onToggle={onToggle} onMenu={onMenu} dragRef={dragRef} onDrop={onDrop} />)}
+          {scheduledSubs.length>0&&(
+            <div style={{margin:'4px 0 2px',paddingLeft:6,borderLeft:'2px solid rgba(182,154,148,0.25)'}}>
+              {scheduledSubs.map(sub=>{
+                const parentTask = null; // on n'a pas les tâches ici, on affiche juste le titre
+                return (
+                  <div key={sub.id} style={{display:'flex',alignItems:'center',gap:6,padding:'5px 6px',borderRadius:8,background:sub.done?'transparent':'rgba(182,154,148,0.06)',marginBottom:3}}>
+                    <button onClick={()=>toggleSubTask&&toggleSubTask(sub.parentId,sub.id)}
+                      style={{width:16,height:16,minWidth:16,borderRadius:'50%',border:'1.5px solid '+(sub.done?'var(--green-dk)':'rgba(182,154,148,0.5)'),background:sub.done?'var(--green-dk)':'transparent',display:'flex',alignItems:'center',justifyContent:'center',padding:0,cursor:'pointer',flexShrink:0}}>
+                      {sub.done&&<span style={{color:'white',fontSize:9,lineHeight:1,fontWeight:700}}>✓</span>}
+                    </button>
+                    <span style={{flex:1,fontSize:12,color:sub.done?'var(--muted)':'var(--text)',textDecoration:sub.done?'line-through':'none',opacity:sub.done?0.5:1}}>
+                      {sub.title}
+                    </span>
+                    <span style={{fontSize:10,color:'var(--muted)',opacity:0.5,fontStyle:'italic'}}>étape</span>
+                    <button onClick={()=>setPlanSubDay({sub,parentId:sub.parentId})} style={{background:'none',border:'none',color:'var(--muted)',opacity:0.3,cursor:'pointer',padding:'1px 3px',fontSize:11}}>📅</button>
+                    <button onClick={()=>deleteSubTask&&deleteSubTask(sub.parentId,sub.id)} style={{background:'none',border:'none',color:'var(--muted)',opacity:0.3,cursor:'pointer',padding:'1px 3px',fontSize:11}}>✕</button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {planSubDay&&<SubTaskPlanModal sub={planSubDay.sub} parentId={planSubDay.parentId} onClose={()=>setPlanSubDay(null)}/>}
           <button className="slot-add-btn" onClick={() => onAddToSlot(slot.id)}>+ Ajouter ici</button>
         </>}
       </div>
@@ -782,7 +929,7 @@
             <SlotSection key={slot.id} slot={slot} allCats={allCats}
               tasks={filterEnergy(scheduled.filter(tk => tk.slot===slot.id))}
               onToggle={onToggle} onMenu={onMenu} onAddToSlot={onAddToSlot}
-              dragRef={dragRef} onDrop={onDrop}
+              dragRef={dragRef} onDrop={onDrop} selectedDate={t}
             />
           ))
         )}
@@ -1368,7 +1515,7 @@
 
   function FinancesView() {
     const fmtE = v => v == null ? '—' : Number(v).toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' €';
-    const fmtD = d => { if(!d) return ''; const p=d.split('-'); return `${p[2]}/${p[1]}`; };
+    // fmtD est disponible en global
     const now = new Date(), cy = String(now.getFullYear());
 
     const [entries,   setEntries]   = React.useState([]);
@@ -2040,6 +2187,7 @@
   function App() {
     const [tasks,        setTasks]        = useState(() => migrateTasks(load(KEYS.tasks, [])));
     const [customCats,   setCustomCats]   = useState(() => load(KEYS.cats, []));
+    const [subTasksMap,  setSubTasksMap]  = useState(() => load(KEYS.subTasks, {}));
     const [tab,          setTab]          = useState('day');
     const [selectedDate, setSelectedDate] = useState(todayKey);
     const [showForm,   setShowForm]   = useState(false);
@@ -2060,6 +2208,24 @@
 
     useEffect(() => { save(KEYS.tasks, tasks); }, [tasks]);
     useEffect(() => { save(KEYS.cats, customCats); }, [customCats]);
+    useEffect(() => { save(KEYS.subTasks, subTasksMap); }, [subTasksMap]);
+
+    const addSubTask = useCallback((parentId, title) => {
+      setSubTasksMap(prev => {
+        const subs = prev[parentId] || [];
+        const newSub = { id: Date.now().toString(36)+Math.random().toString(36).slice(2), title, done:false, scheduledDate:null, slot:null };
+        return { ...prev, [parentId]: [...subs, newSub] };
+      });
+    }, []);
+    const toggleSubTask = useCallback((parentId, subId) => {
+      setSubTasksMap(prev => ({ ...prev, [parentId]: (prev[parentId]||[]).map(s=>s.id===subId?{...s,done:!s.done}:s) }));
+    }, []);
+    const deleteSubTask = useCallback((parentId, subId) => {
+      setSubTasksMap(prev => ({ ...prev, [parentId]: (prev[parentId]||[]).filter(s=>s.id!==subId) }));
+    }, []);
+    const updateSubTask = useCallback((parentId, subId, changes) => {
+      setSubTasksMap(prev => ({ ...prev, [parentId]: (prev[parentId]||[]).map(s=>s.id===subId?{...s,...changes}:s) }));
+    }, []);
 
     // Merge Notion data → local state (préserve les coches locales pas encore confirmées)
     const mergeNotionData = useCallback((data) => {
@@ -2355,6 +2521,7 @@
     const openAdd = (slot=null, date=null) => { setDefSlot(slot); setDefDate(date); setEditTask(null); setPrefill(''); setShowForm(true); };
 
     return (
+      <SubTaskCtx.Provider value={{ subTasksMap, addSubTask, toggleSubTask, deleteSubTask, updateSubTask }}>
       <div style={{paddingTop: timer ? 56 : 0}}>
         {timer && (
           <TimerBanner timer={timer}
@@ -2460,6 +2627,7 @@
           />
         )}
       </div>
+      </SubTaskCtx.Provider>
     );
   }
 
