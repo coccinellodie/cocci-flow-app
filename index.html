@@ -334,10 +334,33 @@
     tasks:       'flow_v4',
     cats:        'flow_custom_cats_v1',
     energy:      'flow_energy_filter',
-    doneLog:     'flow_done_log',     // { [notionId]: doneDate } — seule source de vérité pour les dates
-    pendingSync: 'flow_pending_sync', // tâches à re-syncer (syncs échouées)
-    subTasks:    'cocci_subtasks_v1', // { [parentTaskId]: [{id,title,done,scheduledDate,slot}] }
+    doneLog:     'flow_done_log',
+    pendingSync: 'flow_pending_sync',
+    subTasks:    'cocci_subtasks_v1',
+    templates:   'cocci_templates_v1',
   };
+
+  const mkEtape = (title) => ({ id: Math.random().toString(36).slice(2), title, done:false, scheduledDate:null, slot:null });
+
+  const DEFAULT_TEMPLATES = [
+    {
+      id: 'tpl_restitution_coaching',
+      title: 'Restitution de séance de coaching',
+      icon: '🎙',
+      priority: 'Haute',
+      categories: [],
+      duration: 60,
+      energy: 'verte',
+      etapes: [
+        mkEtape('Télécharger l'audio dans le dossier client'),
+        mkEtape('Transcrire l'audio avec MacWhisper'),
+        mkEtape('Exporter la transcription → dossier client'),
+        mkEtape('Exporter mes notes PDF de la séance → dossier client'),
+        mkEtape('Ajouter audio + transcription à Claude pour la synthèse'),
+        mkEtape('Mettre la synthèse dans Notion Création Express à retravailler'),
+      ],
+    },
+  ];
 
   // ── NOTION SYNC ────────────────────────────────────────
   // ← Coller ici l'URL du Worker Cloudflare après déploiement
@@ -1573,7 +1596,74 @@
     );
   }
 
-  function TaskFormSheet({ onClose, onSave, initial, allCats, customCatIds, onAddCustomCat, onDeleteCustomCat, defaultSlot, defaultDate }) {
+  // ── TEMPLATE SHEET ─────────────────────────────────
+  function TemplateSheet({ templates, onSelect, onDelete, onCreate, onClose }) {
+    const [confirm, setConfirm] = React.useState(null); // id to delete
+
+    return (
+      <div style={{position:'fixed',inset:0,background:'rgba(18,30,18,0.55)',display:'flex',alignItems:'flex-end',justifyContent:'center',zIndex:250}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+        <div style={{background:'var(--bg)',borderRadius:'20px 20px 0 0',padding:'24px 16px 50px',width:'100%',maxWidth:480,maxHeight:'82vh',overflowY:'auto'}}>
+          <div style={{textAlign:'center',marginBottom:20}}>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,color:'var(--green-dk)',fontWeight:400,textTransform:'uppercase',letterSpacing:'0.08em'}}>Modèles</div>
+            <div style={{fontSize:12,color:'var(--muted)',marginTop:4,opacity:0.7}}>Tâches récurrentes déjà séquencées</div>
+          </div>
+
+          {templates.length === 0 && (
+            <div style={{textAlign:'center',padding:'24px 0',color:'var(--muted)',fontSize:13,opacity:0.65}}>
+              Aucun modèle encore.<br/>Crée-en un depuis une tâche existante via ···
+            </div>
+          )}
+
+          {templates.map(tpl => (
+            <div key={tpl.id} style={{background:'var(--surface)',borderRadius:14,padding:'14px 14px 12px',marginBottom:10,border:'1px solid var(--border)'}}>
+              <div style={{display:'flex',alignItems:'flex-start',gap:10}}>
+                <span style={{fontSize:22,lineHeight:1,marginTop:1}}>{tpl.icon||'📋'}</span>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:15,fontWeight:600,color:'var(--text)',lineHeight:1.3,marginBottom:6}}>{tpl.title}</div>
+                  <div style={{display:'flex',flexWrap:'wrap',gap:4,marginBottom:10}}>
+                    {(tpl.etapes||[]).map((e,i) => (
+                      <span key={i} style={{fontSize:10,background:'var(--soft)',color:'var(--muted)',borderRadius:6,padding:'2px 7px'}}>
+                        {i+1}. {e.title.length>28?e.title.slice(0,27)+'…':e.title}
+                      </span>
+                    ))}
+                  </div>
+                  <div style={{display:'flex',gap:8}}>
+                    {confirm===tpl.id ? (
+                      <>
+                        <button onClick={()=>{onDelete(tpl.id);setConfirm(null);}}
+                          style={{flex:1,background:'#c0392b',border:'none',borderRadius:8,padding:'8px',fontSize:12,color:'white',cursor:'pointer',fontWeight:700}}>
+                          Supprimer
+                        </button>
+                        <button onClick={()=>setConfirm(null)}
+                          style={{flex:1,background:'var(--border)',border:'none',borderRadius:8,padding:'8px',fontSize:12,color:'var(--text)',cursor:'pointer'}}>
+                          Annuler
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button onClick={()=>onSelect(tpl)}
+                          style={{flex:2,background:'var(--green-dk)',border:'none',borderRadius:8,padding:'9px',fontSize:13,fontWeight:700,color:'white',cursor:'pointer',fontFamily:"'Cormorant Garamond',serif",letterSpacing:'0.03em'}}>
+                          Utiliser ce modèle →
+                        </button>
+                        <button onClick={()=>setConfirm(tpl.id)}
+                          style={{background:'var(--border)',border:'none',borderRadius:8,padding:'9px 12px',fontSize:14,cursor:'pointer',color:'var(--muted)'}}>
+                          🗑
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+
+          <button onClick={onClose} style={{width:'100%',background:'transparent',border:'none',padding:'12px',fontSize:13,color:'var(--muted)',cursor:'pointer',marginTop:4}}>Fermer</button>
+        </div>
+      </div>
+    );
+  }
+
+  function TaskFormSheet({ onClose, onSave, initial, allCats, customCatIds, onAddCustomCat, onDeleteCustomCat, defaultSlot, defaultDate, initialEtapes }) {
     const isEdit = !!initial;
     const [title,      setTitle]      = useState(initial?.title || '');
     const [priority,   setPriority]   = useState(initial?.priority || 'Haute');
@@ -1609,6 +1699,7 @@
     const { subTasksMap } = React.useContext(SubTaskCtx) || {};
     const [etapes, setEtapes] = React.useState(() => {
       if (initial?.id && subTasksMap?.[initial.id]) return subTasksMap[initial.id].map(s=>({...s}));
+      if (initialEtapes?.length) return initialEtapes.map(e=>({...e, id: Math.random().toString(36).slice(2), done:false}));
       return [];
     });
     const [newEtape,    setNewEtape]    = React.useState('');
@@ -2527,6 +2618,29 @@
     const [showClosingSheet, setShowClosingSheet] = useState(false);
     const [voiceState, setVoiceState] = useState(null); // null | 'listening' | 'confirm'
     const [voiceTitle, setVoiceTitle] = useState('');
+    const [showTemplates,  setShowTemplates]  = useState(false);
+    const [defEtapes,      setDefEtapes]      = useState(null); // étapes pré-remplies depuis modèle
+    const [templates, setTemplates] = useState(() => {
+      const stored = load(KEYS.templates, null);
+      // Premier lancement : initialiser avec les modèles par défaut
+      if (stored === null) { save(KEYS.templates, DEFAULT_TEMPLATES); return DEFAULT_TEMPLATES; }
+      return stored;
+    });
+    useEffect(() => { save(KEYS.templates, templates); }, [templates]);
+
+    const handleDeleteTemplate = useCallback((id) => {
+      setTemplates(prev => prev.filter(t => t.id !== id));
+    }, []);
+
+    const handleSelectTemplate = useCallback((tpl) => {
+      setEditTask(null);
+      setPrefill(tpl.title);
+      setDefEtapes(tpl.etapes || []);
+      setDefSlot(null);
+      setDefDate(selectedDate);
+      setShowTemplates(false);
+      setShowForm(true);
+    }, [selectedDate]);
     const timerRef = useRef(null);
     const dragRef   = useRef(null);
 
@@ -2989,6 +3103,10 @@
 
         {tab !== 'finances' && (
           <div className="fab-area">
+            <button className="fab-voice" onClick={()=>setShowTemplates(true)} title="Modèles"
+              style={{fontSize:18}}>
+              📋
+            </button>
             {(tab==='day' || tab==='backlog') && (
               <button className={`fab-voice${voiceState==='listening'?' listening':''}`} onClick={startVoice} title="Capture vocale">
                 🎙
@@ -3021,7 +3139,7 @@
         {showForm && (
           <TaskFormSheet
             initial={editTask ? {...editTask, prefillTitle: prefill||undefined} : (prefill ? {title:prefill} : null)}
-            onClose={() => { setShowForm(false); setEditTask(null); setPrefill(''); }}
+            onClose={() => { setShowForm(false); setEditTask(null); setPrefill(''); setDefEtapes(null); }}
             onSave={handleSaveTask}
             allCats={allCats}
             customCatIds={customCatIds}
@@ -3029,6 +3147,16 @@
             onDeleteCustomCat={handleDeleteCustomCat}
             defaultSlot={defSlot}
             defaultDate={defDate}
+            initialEtapes={defEtapes}
+          />
+        )}
+
+        {showTemplates && (
+          <TemplateSheet
+            templates={templates}
+            onSelect={handleSelectTemplate}
+            onDelete={handleDeleteTemplate}
+            onClose={() => setShowTemplates(false)}
           />
         )}
 
