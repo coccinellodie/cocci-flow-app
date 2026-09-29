@@ -2622,8 +2622,15 @@
     const [defEtapes,      setDefEtapes]      = useState(null); // étapes pré-remplies depuis modèle
     const [templates, setTemplates] = useState(() => {
       const stored = load(KEYS.templates, null);
-      // Premier lancement : initialiser avec les modèles par défaut
-      if (stored === null) { save(KEYS.templates, DEFAULT_TEMPLATES); return DEFAULT_TEMPLATES; }
+      if (!stored) { save(KEYS.templates, DEFAULT_TEMPLATES); return DEFAULT_TEMPLATES; }
+      // Fusionner : ajouter les modèles par défaut qui auraient été supprimés par erreur
+      const storedIds = stored.map(t => t.id);
+      const missing = DEFAULT_TEMPLATES.filter(t => !storedIds.includes(t.id));
+      if (missing.length > 0) {
+        const merged = [...stored, ...missing];
+        save(KEYS.templates, merged);
+        return merged;
+      }
       return stored;
     });
     useEffect(() => { save(KEYS.templates, templates); }, [templates]);
