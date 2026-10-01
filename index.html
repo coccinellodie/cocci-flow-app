@@ -128,6 +128,11 @@
     .chip-basse   { background: rgba(107,153,128,0.15); color: #4A7A62; }
     .chip-cat { font-size: 11px; padding: 2px 8px; border-radius: 8px; background: rgba(36,61,31,0.08); color: var(--green-dk); white-space: nowrap; }
     .chip-sched { font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 8px; background: var(--green-dk); color: #fff; white-space: nowrap; letter-spacing: 0.01em; }
+    .chip-due { font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 8px; white-space: nowrap; letter-spacing: 0.01em; }
+    .chip-due.due-overdue { background: #e53935; color: #fff; }
+    .chip-due.due-today   { background: #f57c00; color: #fff; }
+    .chip-due.due-soon    { background: #e8a700; color: #fff; }
+    .chip-due.due-future  { background: var(--soft); color: var(--muted); border: 1px solid var(--border); }
     .chip-energy { font-size: 13px; line-height: 1; opacity: 0.7; }
     .energy-strip { display: flex; gap: 8px; align-items: center; padding: 10px 16px 6px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
     .energy-strip::-webkit-scrollbar { display: none; }
@@ -712,6 +717,12 @@
               <span className="task-dur">⏱ {fmtDur(task.duration)}</span>
               <span className={`task-chip chip-${pKey}`}>{task.priority}</span>
               {showDate && task.scheduledDate && <span className="chip-sched">📅 {fmtDateLabel(task.scheduledDate)}</span>}
+              {task.dueDate && !task.done && (() => {
+                const today = todayKey(); const diff = (new Date(task.dueDate) - new Date(today)) / 86400000;
+                const cls = diff < 0 ? 'due-overdue' : diff === 0 ? 'due-today' : diff <= 3 ? 'due-soon' : 'due-future';
+                const prefix = diff < 0 ? '⚑ En retard' : diff === 0 ? "⚑ Aujourd'hui" : '⚑ Echéance';
+                return <span className={`chip-due ${cls}`}>{prefix} {diff > 0 ? fmtDateLabel(task.dueDate) : ''}</span>;
+              })()}
               {cats.map(c => <span key={c.id} className="chip-cat">{c.icon} {c.label}</span>)}
               {task.notes && task.notes.trim() && <span title={task.notes} style={{fontSize:13,opacity:0.55,lineHeight:1}}>📝</span>}
             </div>
@@ -1679,6 +1690,8 @@
     const [newLabel,   setNewLabel]   = useState('');
     const [schedDate,  setSchedDate]  = useState(initial?.scheduledDate || defaultDate || null);
     const [showSched,  setShowSched]  = useState(!!(initial?.scheduledDate || defaultDate));
+    const [dueDate,    setDueDate]    = useState(initial?.dueDate || null);
+    const [showDue,    setShowDue]    = useState(!!(initial?.dueDate));
     const maxSchedDate = (() => { const d=new Date(); d.setMonth(d.getMonth()+6); return localKey(d); })();
     const QUICK_DATES = [
       { key: todayKey(),  label: "Aujourd'hui" },
@@ -1717,7 +1730,7 @@
       if (!title.trim()) return;
       const taskId = isEdit ? initial.id : Date.now().toString(36)+Math.random().toString(36).slice(2);
       const base = isEdit ? { ...initial } : { id: taskId, done: false, doneDate: null, createdAt: new Date().toISOString(), scheduledDate: showSched ? (schedDate || defaultDate || null) : null };
-      onSave({ ...base, title: title.trim(), priority, slot, duration, categories, notes: notes.trim(), energy: energy || null, scheduledDate: showSched ? (schedDate || defaultDate || null) : (isEdit ? initial.scheduledDate : null) }, etapes);
+      onSave({ ...base, title: title.trim(), priority, slot, duration, categories, notes: notes.trim(), energy: energy || null, scheduledDate: showSched ? (schedDate || defaultDate || null) : (isEdit ? initial.scheduledDate : null), dueDate: showDue ? (dueDate || null) : null }, etapes);
       onClose();
     };
 
@@ -1828,6 +1841,29 @@
                   style={{fontSize:14}}
                 />
                 {schedDate && <div style={{fontSize:12,color:'var(--green-dk)',marginTop:6,textAlign:'center'}}>📅 {fmtDateLabel(schedDate)}</div>}
+              </div>
+            )}
+          </div>
+          <div className="form-group">
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+              <label className="form-label" style={{marginBottom:0}}>Date d'échéance ?</label>
+              <button
+                type="button"
+                onClick={() => { setShowDue(o=>!o); if(showDue) setDueDate(null); }}
+                style={{fontSize:12,padding:'4px 12px',borderRadius:20,border:'1px solid var(--border)',background:showDue?'#e53935':'var(--soft)',color:showDue?'white':'var(--muted)',cursor:'pointer',transition:'all 0.2s'}}
+              >{showDue ? '✓ Oui' : 'Non'}</button>
+            </div>
+            {showDue && (
+              <div style={{marginTop:10}}>
+                <input
+                  type="date"
+                  className="form-input"
+                  value={dueDate||''}
+                  min={todayKey()}
+                  onChange={e=>setDueDate(e.target.value||null)}
+                  style={{fontSize:14}}
+                />
+                {dueDate && <div style={{fontSize:12,color:'#e53935',marginTop:6,textAlign:'center'}}>⚑ Echéance : {fmtDateLabel(dueDate)}</div>}
               </div>
             )}
           </div>
