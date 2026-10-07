@@ -2730,10 +2730,12 @@
             return local;
           }
 
-          // Champs que Notion ne stocke pas → toujours préservés depuis local
+          // Champs que Notion ne stocke pas (ou gérés localement) → toujours préservés depuis local
           const localOnlyFields = local ? {
             energy: nt.energy || local.energy || null,
             dueDate: local.dueDate || null,
+            scheduledDate: local.scheduledDate,   // planification gérée localement
+            slot: local.slot || nt.slot,
           } : {};
 
           if (nt.done) {
